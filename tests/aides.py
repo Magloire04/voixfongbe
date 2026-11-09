@@ -43,6 +43,24 @@ class MoteurFactice:
         return (0.3 * numpy.sin(numpy.arange(160 * len(ids)) / 8)).astype(numpy.float32)
 
 
+class CourrielFactice:
+    """Remplace l'envoi SMTP : note les e-mails au lieu de les envoyer."""
+
+    def __init__(self):
+        self.envoyes = []  # {"a", "sujet", "texte"}
+        self.en_panne = False
+        self.configure_ = True
+
+    def configure(self) -> bool:
+        return self.configure_
+
+    def envoyer(self, destinataire: str, sujet: str, texte: str) -> bool:
+        if self.en_panne or not self.configure_:
+            return False
+        self.envoyes.append({"a": destinataire, "sujet": sujet, "texte": texte})
+        return True
+
+
 def appeler(app, methode: str, chemin: str, corps=None, entetes: dict | None = None):
     """Rend (statut, entêtes, corps). corps : dict (envoyé en JSON), bytes ou None."""
     if isinstance(corps, (dict, list)):
