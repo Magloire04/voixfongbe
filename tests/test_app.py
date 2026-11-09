@@ -244,6 +244,12 @@ class TestApp(unittest.TestCase):
         self.assertGreater(moteur.appels, 1)
         self.assertTrue(all(n <= 2 * 120 + 1 for n in moteur.longueurs), moteur.longueurs)
 
+    def test_aucun_morceau_trop_long_meme_sans_espace_ni_avec_accents_decomposes(self):
+        for texte in ("a" * 1000, "ń" * 500):
+            moteur = MoteurFactice()
+            self.assertEqual(self.synthese(self.app(moteur), {"texte": texte})[0], 200)
+            self.assertTrue(all(n <= 2 * 120 + 1 for n in moteur.longueurs), (texte[:3], moteur.longueurs))
+
     def test_morceaux_recolles_avec_une_pause(self):
         moteur = MoteurFactice()
         app = self.app(moteur, max_morceau=20)
