@@ -20,7 +20,7 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'
 ENTETES_PAGE = [("Content-Type", "text/html; charset=utf-8"), ("Cache-Control", "no-store"),
                 ("X-Frame-Options", "DENY"), ("Content-Security-Policy", CSP)]
 TYPES_STATIQUES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-                   ".woff2": "font/woff2"}
+                   ".woff2": "font/woff2", ".svg": "image/svg+xml"}
 # Liste figée au chargement : seul un fichier présent dans voixfongbe/web/ peut être servi.
 STATIQUES = {f.name: f for f in DOSSIER_WEB.glob("*") if f.suffix in TYPES_STATIQUES} if DOSSIER_WEB.is_dir() else {}
 
@@ -108,5 +108,7 @@ def statique(nom: str):
     chemin = STATIQUES.get(nom)
     if chemin is None:
         return None
-    duree = "public, max-age=31536000, immutable" if chemin.suffix == ".woff2" else "public, max-age=3600"
+    # Les polices ne changent jamais ; un script ou un style est revalidé à chaque page, pour qu'un
+    # ancien fichier en cache ne tourne pas avec une page mise à jour.
+    duree = "public, max-age=31536000, immutable" if chemin.suffix == ".woff2" else "no-cache"
     return 200, [("Content-Type", TYPES_STATIQUES[chemin.suffix]), ("Cache-Control", duree)], chemin.read_bytes()

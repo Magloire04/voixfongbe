@@ -71,5 +71,5 @@ ROUTES = [
     (re.compile(r"/api/demande"), frozenset({"GET", "POST"}), api_demande),
     (re.compile(rf"/acces/{JETON}"), frozenset({"GET"}), page_acces),
     (re.compile(rf"/api/acces/{JETON}"), frozenset({"GET", "POST"}), api_acces),
-    (re.compile(r"/static/(?P<nom>[a-z0-9-]+\.(?:css|js|woff2))"), frozenset({"GET"}), fichier_statique),
+    (re.compile(r"/static/(?P<nom>[a-z0-9-]+\.(?:css|js|woff2|svg))"), frozenset({"GET"}), fichier_statique),
 ]

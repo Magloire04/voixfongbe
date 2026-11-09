@@ -145,6 +145,12 @@ class TestPubliques(unittest.TestCase):
         for chemin in ("/static/../app.py", "/static/inconnu.js", "/static/app.py", "/static/demande.html"):
             self.assertEqual(appeler(self.app, "GET", chemin)[0], 404, chemin)
 
+    def test_scripts_et_styles_revalides_polices_gardees(self):
+        # Après une mise à jour, un ancien script en cache ne doit pas tourner avec la nouvelle page.
+        for chemin in ("/static/style.css", "/static/admin.js"):
+            self.assertEqual(appeler(self.app, "GET", chemin)[1]["Cache-Control"], "no-cache", chemin)
+        self.assertIn("immutable", appeler(self.app, "GET", "/static/montserrat-latin-400.woff2")[1]["Cache-Control"])
+
     def test_redirection_https_des_nouvelles_routes(self):
         statut, entetes, _ = appeler(self.app, "GET", "/demande", entetes={"X-Forwarded-Proto": "http"})
         self.assertEqual((statut, entetes["Location"]), (301, "https://voix.bytechnum.com/demande"))
