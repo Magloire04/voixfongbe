@@ -1,0 +1,8 @@
+modele/
+modele-test/
+stockage/
+fidelite/
+.venv*/
+__pycache__/
+*.pyc
+.superpowers/
