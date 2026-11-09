@@ -168,7 +168,7 @@ Toute erreur rend du JSON : `{"erreur": "<explication en français>", "code": "<
 | 503 | `modele_indisponible` / `delai_depasse` | Voix momentanément indisponible ou trop lente : réessayer un peu plus tard, avec un texte plus court. Si la phrase était trop longue, elle sera souvent prête au nouvel essai (`X-Voix-Cache: oui`). |
 | 500 | `erreur_interne` | Réessayer ; si cela dure, prévenir Elisée. |
 
-Seules les demandes qui rendent un son comptent dans le quota : les erreurs ne vous coûtent rien.
+Comptent dans le quota : les demandes qui rendent un son, et celles qui finissent en `delai_depasse` (la voix a travaillé, et la phrase sera souvent prête au nouvel essai). Les autres erreurs ne vous coûtent rien.
 
 ## 6. Écrire le fon pour la voix
 

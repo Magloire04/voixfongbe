@@ -194,9 +194,16 @@ class TestApp(unittest.TestCase):
         for _ in range(2):
             self.assertEqual(self.code(self.synthese(app, {"texte": "mi"})), (500, "erreur_interne"))
 
-    def test_resultat_tardif_mis_en_cache_et_quota_rendu(self):
+    def test_delai_depasse_compte_dans_le_quota(self):
+        """Le calcul a eu lieu : sinon une clé pourrait occuper le processeur sans fin, sans rien payer."""
+        app = self.app(MoteurFactice(delai_s=0.3), delai_s=0.05, par_cle=1)
+        self.assertEqual(self.code(self.synthese(app, {"texte": "Mi kú."})), (503, "delai_depasse"))
+        time.sleep(0.5)
+        self.assertEqual(self.code(self.synthese(app, {"texte": "abɔ"})), (429, "quota_jour"))
+
+    def test_resultat_tardif_mis_en_cache(self):
         moteur = MoteurFactice(delai_s=0.3)
-        app = self.app(moteur, delai_s=0.05, par_cle=1)
+        app = self.app(moteur, delai_s=0.05, par_cle=2)
         self.assertEqual(self.code(self.synthese(app, {"texte": "Mi kú."})), (503, "delai_depasse"))
         time.sleep(0.6)
         statut, entetes, _ = self.synthese(app, {"texte": "Mi kú."})

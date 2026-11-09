@@ -38,8 +38,9 @@ TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
 ROUTES = {"/v1/etat": "GET", "/v1/synthese": "POST", "/robots.txt": "GET"}
 HOTE = re.compile(r"[A-Za-z0-9.-]+(:\d{1,5})?")
 HOTE_PAR_DEFAUT = "voix.bytechnum.com"
-# Erreurs après lesquelles la demande n'est pas comptée dans le quota (rien n'a été rendu).
-RENDRE_LE_QUOTA = {"voix_occupee", "delai_depasse", "modele_indisponible"}
+# Erreurs après lesquelles la demande n'est pas comptée : aucun calcul n'a eu lieu. Un délai dépassé
+# compte, car le calcul tourne jusqu'au bout : sinon une clé occuperait le processeur sans rien payer.
+RENDRE_LE_QUOTA = {"voix_occupee", "modele_indisponible"}
 
 MESSAGES = {
     "introuvable": (404, "Adresse inconnue. Voir /v1/etat et le README."),
