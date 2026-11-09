@@ -88,6 +88,10 @@ for _ in 1 2 3 4 5; do
   if ETAT=$(curl -fsS --max-time 30 "https://$DOMAINE/v1/etat" 2>/dev/null); then
     printf '%s\n' "$ETAT"
     grep -q '"pret": true' <<<"$ETAT" || echo "La voix n'est pas prête : vérifier le modèle."
+    for page in demande admin; do
+      CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "https://$DOMAINE/$page")
+      [ "$CODE" = 200 ] && echo "Page /$page : en ligne." || echo "ATTENTION : https://$DOMAINE/$page répond $CODE."
+    done
     printf '\nService en ligne : https://%s\n' "$DOMAINE"
     exit 0
   fi
