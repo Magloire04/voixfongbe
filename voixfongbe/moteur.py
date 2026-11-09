@@ -80,7 +80,13 @@ class Moteur:
             raise ModeleIndisponible("modèle absent ou empreinte fausse")
         with self._verrou:
             if self._session is None:
-                self._session = self._ouvrir()
+                try:
+                    self._session = self._ouvrir()
+                except Exception as e:
+                    # Empreinte juste mais fichier illisible (version d'onnxruntime, export abîmé) :
+                    # la voix est indisponible, /v1/etat le dira.
+                    self._pret, self._verifie_le, self._version = False, time.monotonic(), None
+                    raise ModeleIndisponible(f"modèle illisible : {e}") from e
             session = self._session
         entree = numpy.array([ids], dtype=numpy.int64)
         donnees = {"input_ids": entree}

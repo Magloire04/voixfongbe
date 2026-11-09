@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 import shutil
 import tempfile
 import unittest
@@ -169,6 +171,63 @@ class TestApp(unittest.TestCase):
     def test_robots_txt(self):
         statut, _, corps = appeler(self.app(), "GET", "/robots.txt")
         self.assertEqual((statut, corps), (200, b"User-agent: *\nDisallow: /\n"))
+
+    # Relecture finale
+    def test_lettre_accentuee_inconnue_ne_plante_pas(self):
+        self.assertEqual(self.synthese(self.app(), {"texte": "Mi ń yì."})[0], 200)
+
+    def test_texte_sans_lettre_400(self):
+        self.assertEqual(self.code(self.synthese(self.app(), {"texte": "300 - 400"})), (400, "texte_vide"))
+
+    def test_quota_non_consomme_si_modele_absent(self):
+        app = self.app(MoteurFactice(pret=False), par_cle=1)
+        for _ in range(2):
+            self.assertEqual(self.code(self.synthese(app, {"texte": "mi"})), (503, "modele_indisponible"))
+
+    def test_quota_non_consomme_si_texte_vide(self):
+        app = self.app(par_cle=1)
+        self.synthese(app, {"texte": "300"})
+        self.assertEqual(self.synthese(app, {"texte": "mi"})[0], 200)
+
+    def test_erreur_imprevue_rend_le_quota(self):
+        app = self.app(MoteurFactice(erreur=RuntimeError("panne")), par_cle=1)
+        for _ in range(2):
+            self.assertEqual(self.code(self.synthese(app, {"texte": "mi"})), (500, "erreur_interne"))
+
+    def test_resultat_tardif_mis_en_cache_et_quota_rendu(self):
+        moteur = MoteurFactice(delai_s=0.3)
+        app = self.app(moteur, delai_s=0.05, par_cle=1)
+        self.assertEqual(self.code(self.synthese(app, {"texte": "Mi kú."})), (503, "delai_depasse"))
+        time.sleep(0.6)
+        statut, entetes, _ = self.synthese(app, {"texte": "Mi kú."})
+        self.assertEqual((statut, entetes["X-Voix-Cache"], moteur.appels), (200, "oui", 1))
+
+    def test_voix_occupee_rend_503_tout_de_suite(self):
+        app = self.app(MoteurFactice(delai_s=0.5), par_cle=2)
+        premiere = threading.Thread(target=self.synthese, args=(app, {"texte": "Mi kú."}))
+        premiere.start()
+        time.sleep(0.1)
+        debut = time.monotonic()
+        statut, entetes, corps = self.synthese(app, {"texte": "abɔ"})
+        self.assertLess(time.monotonic() - debut, 0.3)
+        self.assertEqual((statut, json.loads(corps)["code"], entetes["Retry-After"]), (503, "voix_occupee", "5"))
+        premiere.join()
+        self.assertEqual(self.synthese(app, {"texte": "abɔ"})[0], 200)  # quota rendu
+
+    def test_redirection_seulement_pour_les_routes_connues(self):
+        statut, entetes, _ = appeler(self.app(), "GET", "/x\r\nSet-Cookie: a=b",
+                                     entetes={"X-Forwarded-Proto": "http"})
+        self.assertEqual(statut, 404)
+        self.assertNotIn("Location", entetes)
+
+    def test_redirection_sans_hote_douteux(self):
+        statut, entetes, _ = appeler(self.app(), "GET", "/v1/etat",
+                                     entetes={"X-Forwarded-Proto": "http", "Host": "a.example\r\nX-Y: z"})
+        self.assertEqual((statut, entetes["Location"]), (301, "https://voix.bytechnum.com/v1/etat"))
+
+    def test_corps_avec_bom_accepte(self):
+        corps = b"\xef\xbb\xbf" + json.dumps({"texte": "Mi kú."}).encode("utf-8")
+        self.assertEqual(self.synthese(self.app(), corps)[0], 200)
 
     def test_aucune_reponse_cors(self):
         app = self.app()

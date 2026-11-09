@@ -46,7 +46,7 @@ if grep -q "\"$DOSSIER_APP\"" <<<"$(selecteur get)"; then
 else
   creer() {
     selecteur create --version="$PYTHON_VERSION" --app-root="$DOSSIER_APP" --domain="$DOMAINE" \
-      --app-uri="$1" --app-mode=production --startup-file=passenger_wsgi.py --entry-point=application
+      --app-uri="$1" --startup-file=passenger_wsgi.py --entry-point=application
   }
   # L'adresse racine s'écrit vide ou « / » selon les versions du sélecteur.
   creer "" || creer "/" || echec "la création de l'application a été refusée (message ci-dessus)."
@@ -61,7 +61,7 @@ etape "Dépendances"
 "$ENV_PYTHON/bin/python" -c "import onnxruntime, numpy, lameenc; print('onnxruntime', onnxruntime.__version__)"
 
 etape "Stockage et modèle"
-mkdir -p "$RACINE/stockage"
+mkdir -p "$RACINE/stockage" "$RACINE/modele"
 chmod 700 "$RACINE/stockage"
 if [ -d "$RACINE/public" ] && [ -n "$(ls -A "$RACINE/public" 2>/dev/null)" ]; then
   echo "ATTENTION : $RACINE/public n'est pas vide. Passenger sert ces fichiers sans contrôle : le vider."
@@ -76,6 +76,9 @@ if [ -f "$MODELE/model.onnx" ] && [ -f "$MODELE/vocab.json" ] && [ -f "$MODELE/e
 else
   echo "ATTENTION : modèle absent de $MODELE (model.onnx, vocab.json, empreinte.txt) : voir EXPLOITATION.md."
 fi
+# Une empreinte juste ne garantit pas qu'onnxruntime sait lire le fichier : vrai essai de la voix.
+"$ENV_PYTHON/bin/python" "$RACINE/scripts/essayer_voix.py" ||
+  echo "ATTENTION : la voix ne parle pas encore (message ci-dessus) : /v1/synthese répondra 503."
 
 etape "Redémarrage"
 selecteur restart --app-root="$DOSSIER_APP"

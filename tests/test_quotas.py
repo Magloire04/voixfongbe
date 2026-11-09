@@ -55,6 +55,18 @@ class TestQuotas(unittest.TestCase):
         q.consommer("a", MIDI)  # refusée
         self.assertIsNone(q.consommer("b", MIDI))
 
+    def test_rendre_annule_une_consommation(self):
+        q = Quotas(self.chemin, par_cle=1, total=300)
+        q.consommer("demo", MIDI)
+        q.rendre("demo", MIDI)
+        self.assertIsNone(q.consommer("demo", MIDI))
+
+    def test_rendre_sans_consommation_ne_fait_rien(self):
+        q = Quotas(self.chemin, par_cle=1, total=300)
+        q.rendre("demo", MIDI)
+        self.assertIsNone(q.consommer("demo", MIDI))
+        self.assertIsNotNone(q.consommer("demo", MIDI))
+
     def test_deux_processus_ne_perdent_aucun_decompte(self):
         processus = [multiprocessing.Process(target=_consommer_50, args=(str(self.chemin),)) for _ in range(2)]
         for p in processus:

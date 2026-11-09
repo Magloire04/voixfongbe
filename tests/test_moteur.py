@@ -44,6 +44,13 @@ class TestMoteur(unittest.TestCase):
         self.assertEqual(moteur.version, hashlib.sha256(b"pas un vrai modele").hexdigest()[:12])
         self.assertEqual(moteur.vocabulaire["_"], 0)
 
+    def test_modele_illisible_malgre_empreinte_juste_rend_indisponible(self):
+        self.faux_modele(empreinte_juste=True)
+        moteur = Moteur(self.dossier)
+        with self.assertRaises(ModeleIndisponible):
+            moteur.synthetiser([0, 5, 0])
+        self.assertFalse(moteur.pret())
+
     @unittest.skipUnless((MODELE_REEL / "model.onnx").exists(), "modèle absent")
     def test_vraie_synthese_donne_un_son_de_16_khz(self):
         son = Moteur(MODELE_REEL).synthetiser(identifiants(preparer("Mi kú abɔ.", VOCAB), VOCAB))

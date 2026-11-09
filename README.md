@@ -110,26 +110,34 @@ if ($statut === 200) {
 La page ne connaît pas la clé. Elle appelle une adresse de **votre** serveur, qui ajoute la clé et renvoie le son. Exemple minimal en Node.js 18+ (aucune bibliothèque) :
 
 ```js
-// relais.mjs : node relais.mjs, puis la page appelle POST http://votre-serveur:8080/voix
+// relais.mjs : node relais.mjs (écoute sur le port 8080)
 import { createServer } from 'node:http';
 
 createServer(async (req, res) => {
   if (req.method !== 'POST' || req.url !== '/voix') { res.writeHead(404).end(); return; }
-  let corps = '';
-  for await (const morceau of req) {
-    corps += morceau;
-    if (corps.length > 8192) { res.writeHead(413).end(); return; }
+  try {
+    let corps = '';
+    for await (const morceau of req) {
+      corps += morceau;
+      if (corps.length > 8192) { res.writeHead(413).end(); return; }
+    }
+    const { texte } = JSON.parse(corps || '{}');
+    const reponse = await fetch('https://voix.bytechnum.com/v1/synthese', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.VOIX_FON_CLE}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texte, format: 'mp3' }),
+    });
+    res.writeHead(reponse.status, { 'Content-Type': reponse.headers.get('content-type') });
+    res.end(Buffer.from(await reponse.arrayBuffer()));
+  } catch {
+    // Corps illisible ou voix injoignable : une erreur pour ce visiteur, sans arrêter le relais.
+    if (!res.headersSent) res.writeHead(502);
+    res.end();
   }
-  const { texte } = JSON.parse(corps || '{}');
-  const reponse = await fetch('https://voix.bytechnum.com/v1/synthese', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.VOIX_FON_CLE}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ texte, format: 'mp3' }),
-  });
-  res.writeHead(reponse.status, { 'Content-Type': reponse.headers.get('content-type') });
-  res.end(Buffer.from(await reponse.arrayBuffer()));
 }).listen(8080);
 ```
+
+L'adresse `/voix` doit être servie **par le même site que la page** (même domaine et même port, par exemple derrière le même serveur web) : sinon le navigateur bloque l'appel. Si votre site tourne déjà sous Node.js, ajoutez simplement cette route à votre serveur.
 
 Côté page :
 
@@ -150,21 +158,27 @@ Toute erreur rend du JSON : `{"erreur": "<explication en français>", "code": "<
 | 400 | `texte_absent` | Le champ `texte` manque ou n'est pas une chaîne. |
 | 400 | `texte_trop_long` | 1 000 caractères au plus : couper le texte en phrases. |
 | 400 | `format_inconnu` | `format` vaut `mp3` ou `wav`. |
-| 400 | `texte_vide` | Rien de prononçable : le texte ne contient que des chiffres, signes ou émojis (section 6). |
+| 400 | `texte_vide` | Rien de prononçable : le texte ne contient aucune lettre fon, seulement des chiffres, signes ou émojis (section 6). |
 | 401 | `cle_absente` / `cle_invalide` | Vérifier l'en-tête `Authorization: Bearer <clé>` et la clé. |
+| 404 | `introuvable` | Adresse inconnue : seules `/v1/synthese` et `/v1/etat` existent. |
+| 405 | `methode` | Mauvaise méthode : `POST` pour `/v1/synthese`, `GET` pour `/v1/etat`. |
 | 413 | `corps_trop_grand` | Corps de plus de 8 Ko. |
-| 429 | `quota_jour` | Quota du jour atteint. L'en-tête `Retry-After` donne le nombre de secondes jusqu'à minuit, heure de Porto-Novo. |
-| 503 | `modele_indisponible` / `delai_depasse` | Voix momentanément indisponible ou trop lente : réessayer un peu plus tard, avec un texte plus court. |
+| 429 | `quota_jour` | Quota du jour atteint (le vôtre, ou celui de tout le service). L'en-tête `Retry-After` donne le nombre de secondes jusqu'à minuit, heure de Porto-Novo. |
+| 503 | `voix_occupee` | La voix prépare déjà une autre phrase : réessayer après le nombre de secondes indiqué par `Retry-After`. |
+| 503 | `modele_indisponible` / `delai_depasse` | Voix momentanément indisponible ou trop lente : réessayer un peu plus tard, avec un texte plus court. Si la phrase était trop longue, elle sera souvent prête au nouvel essai (`X-Voix-Cache: oui`). |
 | 500 | `erreur_interne` | Réessayer ; si cela dure, prévenir Elisée. |
+
+Seules les demandes qui rendent un son comptent dans le quota : les erreurs ne vous coûtent rien.
 
 ## 6. Écrire le fon pour la voix
 
 La voix ne connaît que les lettres du fon et quelques accents. Le service prépare le texte avant de le dire :
 
 - **Majuscules** : sans effet, tout est mis en minuscules.
-- **Lettres reconnues** : a à z sauf q et r, ainsi que ɔ, ɛ, ɖ, đ, et l'apostrophe et le trait d'union.
-- **Accents gardés** : l'aigu (á, é, í, ó, ú, et sur ɔ et ɛ), le caron (ǎ, ě, ǐ, ǒ, ǔ), et l'accent grave sur è et ì. Sur les autres lettres, l'accent grave est retiré et la lettre reste.
-- **Ponctuation** : `. , ; : ? !` font une petite pause. Le reste des signes est ignoré.
+- **Lettres reconnues** : a à z sauf q et r, ainsi que ɔ, ɛ, ɖ, đ, et l'apostrophe (droite ou typographique) et le trait d'union.
+- **Accents gardés** : l'aigu et le caron, sur toute lettre reconnue (á, é, ɔ́, ɛ́, ń, ǎ, ě, ǒ...), et l'accent grave sur è et ì. Sur les autres lettres, l'accent grave est retiré et la lettre reste.
+- **Ponctuation et blancs** : `. , ; : ? !` font une petite pause. Les retours à la ligne et tabulations comptent comme des espaces. Le reste des signes est ignoré.
+- **Texte sans lettre** : un texte qui ne contient aucune lettre fon (« 300 - 400 ») est refusé (`texte_vide`) plutôt que de produire un souffle.
 - **Chiffres** : ignorés. **Écrivez les nombres en toutes lettres, en fon** : « 300 F » ne serait pas dit. L'en-tête `X-Voix-Caracteres-Ignores` vous signale ce qui a été sauté.
 - **Longueur** : préférez des phrases courtes, envoyées une par une. La voix répond plus vite, et l'utilisateur entend la première phrase pendant que la suivante se prépare.
 
@@ -173,7 +187,8 @@ La prononciation reste celle d'une voix de synthèse : faites relire vos phrases
 ## 7. Limites et temps de réponse
 
 - 1 000 caractères au plus par demande.
-- 100 demandes par jour pour votre projet (jour de Porto-Novo, UTC+1), y compris les phrases servies par le cache.
+- 100 demandes par jour pour votre projet (jour de Porto-Novo, UTC+1), y compris les phrases servies par le cache ; et 300 par jour pour l'ensemble des projets qui utilisent le service.
+- Une seule phrase fabriquée à la fois : si deux demandes arrivent ensemble, la seconde reçoit `voix_occupee` et réessaie quelques secondes plus tard.
 - Une phrase déjà dite revient tout de suite (`X-Voix-Cache: oui`).
 - Temps de réponse : **à mesurer après la mise en ligne**. Le service s'endort quand personne ne l'utilise : la première demande après une pause est plus lente que les suivantes.
 

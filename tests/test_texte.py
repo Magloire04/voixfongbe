@@ -44,6 +44,30 @@ class TestTexte(unittest.TestCase):
     def test_caracteres_ignores_ne_compte_ni_espaces_ni_ponctuation(self):
         self.assertEqual(caracteres_ignores("Mi kú,  abɔ !", VOCAB), 0)
 
+    # Relecture finale
+    def test_aucune_lettre_latine_ne_fait_planter_les_identifiants(self):
+        for code in [*range(0x41, 0x7B), *range(0xC0, 0x250), *range(0x1E00, 0x1F00)]:
+            texte = "ma" + chr(code) + "ma"
+            identifiants(preparer(texte, VOCAB), VOCAB)  # ne lève pas KeyError
+
+    def test_lettre_et_accent_connus_gardes_en_deux_symboles(self):
+        self.assertEqual(preparer("Mi ń yì", VOCAB), "mi ń yì")
+
+    def test_texte_sans_lettre_devient_vide(self):
+        for texte in ("300 - 400", "97-00-00-00", "___", "' - '"):
+            self.assertEqual(preparer(texte, VOCAB), "", texte)
+
+    def test_symbole_de_remplissage_retire(self):
+        self.assertEqual(preparer("mi_kú", VOCAB), "mikú")
+
+    def test_blancs_deviennent_une_espace(self):
+        for texte in ("Mi kú\nabɔ", "Mi kú\tabɔ", "Mi kú abɔ", "Mi kú\r\n abɔ"):
+            self.assertEqual(preparer(texte, VOCAB), "mi kú abɔ", repr(texte))
+
+    def test_apostrophe_typographique_devient_apostrophe(self):
+        for apostrophe in ("’", "‘", "ʼ"):
+            self.assertEqual(preparer(f"n{apostrophe}a", VOCAB), "n'a")
+
 
 if __name__ == "__main__":
     unittest.main()

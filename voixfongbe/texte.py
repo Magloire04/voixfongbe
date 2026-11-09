@@ -15,6 +15,8 @@ from pathlib import Path
 
 ACCENTS_CONNUS = {"́", "̌"}  # aigu, caron
 PONCTUATION = set(".,;:?!")
+APOSTROPHES = {"’": "'", "‘": "'", "ʼ": "'"}
+REMPLISSAGE = "_"  # symbole 0 de la voix : jamais pris dans le texte reçu
 BLANC = 0
 
 
@@ -24,6 +26,11 @@ def charger_vocabulaire(chemin: Path) -> dict[str, int]:
 
 def _symboles(c: str, vocabulaire: Mapping[str, int]) -> str | None:
     """Ce que devient un caractère : des symboles connus, une espace, ou None s'il disparaît."""
+    if c.isspace():  # retour à la ligne, tabulation, espace insécable : une pause, pas des mots collés
+        return " "
+    c = APOSTROPHES.get(c, c)
+    if c == REMPLISSAGE:
+        return None
     if c in vocabulaire:
         return c
     d = unicodedata.normalize("NFD", c)
@@ -40,8 +47,21 @@ def preparer(texte: str, vocabulaire: Mapping[str, int]) -> str:
         s = _symboles(c, vocabulaire)
         if s is not None:
             morceaux.append(s)
-    prepare = unicodedata.normalize("NFC", "".join(morceaux))
-    return re.sub(r" {2,}", " ", prepare).strip()
+    # NFC peut recomposer une lettre et son accent en un caractère absent du vocabulaire
+    # (n + aigu donne « ń ») : on le garde alors décomposé, en symboles que la voix connaît.
+    sortie = []
+    for c in unicodedata.normalize("NFC", "".join(morceaux)):
+        if c in vocabulaire:
+            sortie.append(c)
+        else:
+            d = unicodedata.normalize("NFD", c)
+            if all(x in vocabulaire for x in d):
+                sortie.append(d)
+    prepare = re.sub(r" {2,}", " ", "".join(sortie)).strip()
+    # Sans aucune lettre (« 300 - 400 » devient « - »), la voix ne rendrait qu'un souffle.
+    if not any(unicodedata.category(c).startswith("L") for c in prepare):
+        return ""
+    return prepare
 
 
 def identifiants(texte_prepare: str, vocabulaire: Mapping[str, int]) -> list[int]:

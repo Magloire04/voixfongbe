@@ -8,7 +8,9 @@ Pas de CORS : le service s'appelle depuis le serveur d'un projet, où la clé re
 """
 
 import json
+import re
 import sys
+import threading
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
@@ -34,6 +36,10 @@ SECURITE = [
 ]
 TYPES = {"mp3": "audio/mpeg", "wav": "audio/wav"}
 ROUTES = {"/v1/etat": "GET", "/v1/synthese": "POST", "/robots.txt": "GET"}
+HOTE = re.compile(r"[A-Za-z0-9.-]+(:\d{1,5})?")
+HOTE_PAR_DEFAUT = "voix.bytechnum.com"
+# Erreurs après lesquelles la demande n'est pas comptée dans le quota (rien n'a été rendu).
+RENDRE_LE_QUOTA = {"voix_occupee", "delai_depasse", "modele_indisponible"}
 
 MESSAGES = {
     "introuvable": (404, "Adresse inconnue. Voir /v1/etat et le README."),
@@ -49,6 +55,7 @@ MESSAGES = {
     "modele_indisponible": (503, "La voix est momentanément indisponible."),
     "texte_vide": (400, "Aucun caractère fon reconnu dans le texte : chiffres, signes et émojis sont ignorés."),
     "delai_depasse": (503, "La voix a mis trop de temps à répondre. Réessayez avec un texte plus court."),
+    "voix_occupee": (503, "La voix prépare déjà une autre phrase. Réessayez dans quelques secondes."),
     "erreur_interne": (500, "Erreur interne du service."),
 }
 
@@ -80,6 +87,18 @@ def creer_application(config: Config, moteur=None, horloge=None):
     cache = Cache(stockage / "cache", config.plafond_cache)
     journal = Journal(stockage / "journal")
     executeur = ThreadPoolExecutor(max_workers=1)
+    # Une seule synthèse à la fois par processus : le compte n'a que 2 cœurs. Le verrou n'est libéré
+    # qu'à la fin réelle du calcul, même si la demande a abandonné entre-temps.
+    occupe = threading.Lock()
+
+    def fabriquer(ids: list[int], format_: str, cle_cache: str) -> bytes:
+        try:
+            echantillons = moteur.synthetiser(ids)
+            son = en_mp3(echantillons) if format_ == "mp3" else en_wav(echantillons)
+            cache.ecrire(cle_cache, son)  # même en retard : le prochain essai le trouvera tout de suite
+            return son
+        finally:
+            occupe.release()
 
     def lire_corps(environ) -> dict:
         try:
@@ -90,7 +109,7 @@ def creer_application(config: Config, moteur=None, horloge=None):
             raise ErreurApi("corps_trop_grand")
         brut = environ["wsgi.input"].read(longueur) if longueur > 0 else b""
         try:
-            donnees = json.loads(brut.decode("utf-8"))
+            donnees = json.loads(brut.decode("utf-8-sig"))  # un fichier écrit par Bloc-notes commence par un BOM
         except (UnicodeDecodeError, ValueError):
             raise ErreurApi("json_invalide") from None
         if not isinstance(donnees, dict):
@@ -118,9 +137,7 @@ def creer_application(config: Config, moteur=None, horloge=None):
             raise ErreurApi("format_inconnu")
         suivi["format"] = format_
 
-        attente = quotas.consommer(projet, horloge())
-        if attente is not None:
-            raise ErreurApi("quota_jour", [("Retry-After", str(attente))])
+        # Tout ce qui peut échouer sans rien produire passe avant le quota.
         if not moteur.pret():
             raise ErreurApi("modele_indisponible")
         vocabulaire = moteur.vocabulaire
@@ -128,19 +145,35 @@ def creer_application(config: Config, moteur=None, horloge=None):
         if not prepare:
             raise ErreurApi("texte_vide")
 
-        cle_cache = Cache.cle(moteur.version, format_, prepare)
-        son = cache.lire(cle_cache)
-        suivi["cache"] = son is not None
-        if son is None:
-            tache = executeur.submit(moteur.synthetiser, identifiants(prepare, vocabulaire))
-            try:
-                echantillons = tache.result(timeout=config.delai_s)
-            except DelaiDepasse:
-                raise ErreurApi("delai_depasse") from None
-            except ModeleIndisponible:
-                raise ErreurApi("modele_indisponible") from None
-            son = en_mp3(echantillons) if format_ == "mp3" else en_wav(echantillons)
-            cache.ecrire(cle_cache, son)
+        maintenant = horloge()
+        attente = quotas.consommer(projet, maintenant)
+        if attente is not None:
+            raise ErreurApi("quota_jour", [("Retry-After", str(attente))])
+        try:
+            cle_cache = Cache.cle(moteur.version, format_, prepare)
+            son = cache.lire(cle_cache)
+            suivi["cache"] = son is not None
+            if son is None:
+                if not occupe.acquire(blocking=False):
+                    raise ErreurApi("voix_occupee", [("Retry-After", "5")])
+                try:
+                    tache = executeur.submit(fabriquer, identifiants(prepare, vocabulaire), format_, cle_cache)
+                except BaseException:
+                    occupe.release()
+                    raise
+                try:
+                    son = tache.result(timeout=config.delai_s)
+                except DelaiDepasse:
+                    raise ErreurApi("delai_depasse") from None
+                except ModeleIndisponible:
+                    raise ErreurApi("modele_indisponible") from None
+        except ErreurApi as e:
+            if e.code in RENDRE_LE_QUOTA:
+                quotas.rendre(projet, maintenant)
+            raise
+        except Exception:
+            quotas.rendre(projet, maintenant)
+            raise
         return 200, [("Content-Type", TYPES[format_]), ("X-Voix-Licence", LICENCE),
                      ("X-Voix-Cache", "oui" if suivi["cache"] else "non"),
                      ("X-Voix-Caracteres-Ignores", str(caracteres_ignores(texte, vocabulaire)))], son
@@ -148,16 +181,17 @@ def creer_application(config: Config, moteur=None, horloge=None):
     def traiter(environ, suivi: dict):
         methode = environ.get("REQUEST_METHOD", "GET")
         chemin = environ.get("PATH_INFO", "")
-        if environ.get("HTTP_X_FORWARDED_PROTO", "").lower() == "http":
-            hote = environ.get("HTTP_HOST", "voix.bytechnum.com")
-            requete = environ.get("QUERY_STRING")
-            # 308 garde la méthode et le corps d'un POST ; 301 pour une simple lecture.
-            return (301 if methode in ("GET", "HEAD") else 308,
-                    [("Location", f"https://{hote}{chemin}" + (f"?{requete}" if requete else ""))], b"")
         if chemin not in ROUTES:
             raise ErreurApi("introuvable")
         if methode != ROUTES[chemin]:
             raise ErreurApi("methode", [("Allow", ROUTES[chemin])])
+        if environ.get("HTTP_X_FORWARDED_PROTO", "").lower() == "http":
+            # Seulement vers une route connue, avec un hôte vérifié : rien de ce que le client
+            # envoie ne peut glisser un retour à la ligne dans l'en-tête Location.
+            hote = next((h for h in (environ.get("HTTP_HOST", ""), environ.get("SERVER_NAME", ""))
+                         if HOTE.fullmatch(h)), HOTE_PAR_DEFAUT)
+            # 308 garde la méthode et le corps d'un POST ; 301 pour une simple lecture.
+            return 301 if methode in ("GET", "HEAD") else 308, [("Location", f"https://{hote}{chemin}")], b""
         if chemin == "/robots.txt":
             return 200, [("Content-Type", "text/plain; charset=utf-8")], b"User-agent: *\nDisallow: /\n"
         if chemin == "/v1/etat":

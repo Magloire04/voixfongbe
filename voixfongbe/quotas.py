@@ -31,3 +31,14 @@ class Quotas:
             donnees["total"] += 1
             ecrire_json(self.chemin, donnees)
         return None
+
+    def rendre(self, projet: str, maintenant: datetime) -> None:
+        """Annule une demande comptée qui n'a pas pu aboutir (voix indisponible, occupée, trop lente)."""
+        jour = maintenant.astimezone(FUSEAU).date().isoformat()
+        with verrou(self.chemin):
+            donnees = lire_json(self.chemin, {})
+            if donnees.get("jour") != jour or donnees["projets"].get(projet, 0) <= 0:
+                return
+            donnees["projets"][projet] -= 1
+            donnees["total"] = max(0, donnees["total"] - 1)
+            ecrire_json(self.chemin, donnees)
