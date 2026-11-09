@@ -190,7 +190,19 @@ La prononciation reste celle d'une voix de synthèse : faites relire vos phrases
 - 100 demandes par jour pour votre projet (jour de Porto-Novo, UTC+1), y compris les phrases servies par le cache ; et 300 par jour pour l'ensemble des projets qui utilisent le service.
 - Une seule phrase fabriquée à la fois : si deux demandes arrivent ensemble, la seconde reçoit `voix_occupee` et réessaie quelques secondes plus tard.
 - Une phrase déjà dite revient tout de suite (`X-Voix-Cache: oui`).
-- Temps de réponse : **à mesurer après la mise en ligne**. Le service s'endort quand personne ne l'utilise : la première demande après une pause est plus lente que les suivantes.
+- Un long texte est dit par morceaux d'environ 120 caractères, recollés avec une courte pause : c'est ce qui garde le service léger. Couper vous-même aux fins de phrase donne le meilleur résultat.
+
+Temps de réponse mesurés sur le serveur le 9 novembre 2026 :
+
+| Demande | Temps |
+| --- | --- |
+| Première demande après une pause (le service se réveille), 100 caractères | environ 4 s |
+| 100 caractères, service réveillé | environ 2 s |
+| 300 caractères | environ 6 s |
+| 1 000 caractères | environ 18 s |
+| Phrase déjà dite (cache) | moins d'un dixième de seconde |
+
+Le service s'endort au bout de quelques minutes sans demande. Pour une démonstration, envoyez une première phrase juste avant de commencer : elle réveille la voix, et les suivantes répondent en 2 s environ.
 
 ## 8. Licence et mention obligatoire
 

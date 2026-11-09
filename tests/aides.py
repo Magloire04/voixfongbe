@@ -19,6 +19,7 @@ class MoteurFactice:
         self.delai_s = delai_s
         self.erreur = erreur
         self.appels = 0
+        self.longueurs = []  # longueur des identifiants reçus, par appel
 
     def pret(self) -> bool:
         return self._pret
@@ -35,6 +36,7 @@ class MoteurFactice:
         if not self._pret:
             raise ModeleIndisponible("factice")
         self.appels += 1
+        self.longueurs.append(len(ids))
         if self.erreur:
             raise self.erreur
         time.sleep(self.delai_s)

@@ -13,6 +13,7 @@ class Config:
     dossier_stockage: Path
     fils: int = 2
     max_caracteres: int = 1000
+    max_morceau: int = 120  # dit d'un coup au plus : environ 400 Mo de mémoire sur le serveur
     par_cle: int = 100
     total_jour: int = 300
     delai_s: float = 30.0

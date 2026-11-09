@@ -236,6 +236,23 @@ class TestApp(unittest.TestCase):
         corps = b"\xef\xbb\xbf" + json.dumps({"texte": "Mi kú."}).encode("utf-8")
         self.assertEqual(self.synthese(self.app(), corps)[0], 200)
 
+    # Mémoire bornée : un long texte est dit par morceaux
+    def test_long_texte_dit_par_morceaux_de_120_caracteres(self):
+        moteur = MoteurFactice()
+        texte = " ".join(["Mi zìn fí élɔ bo kàn nǔ ɖevo byɔ."] * 20)  # environ 680 caractères
+        self.assertEqual(self.synthese(self.app(moteur), {"texte": texte})[0], 200)
+        self.assertGreater(moteur.appels, 1)
+        self.assertTrue(all(n <= 2 * 120 + 1 for n in moteur.longueurs), moteur.longueurs)
+
+    def test_morceaux_recolles_avec_une_pause(self):
+        moteur = MoteurFactice()
+        app = self.app(moteur, max_morceau=20)
+        statut, _, wav = self.synthese(app, {"texte": "Mi kú abɔ ɖo gle. Un na xlɛ́ mi lee.", "format": "wav"})
+        self.assertEqual(statut, 200)
+        self.assertEqual(moteur.appels, 2)
+        attendu = sum(160 * n for n in moteur.longueurs) + int(0.15 * 16000)
+        self.assertEqual((len(wav) - 44) // 2, attendu)
+
     def test_aucune_reponse_cors(self):
         app = self.app()
         origine = {"Origin": "https://ailleurs.example", **self.auth}
