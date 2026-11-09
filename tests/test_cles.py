@@ -46,10 +46,10 @@ class TestCles(unittest.TestCase):
         self.assertFalse(cles.revoquer("inconnu"))
 
     def test_nom_de_projet_invalide_refuse(self):
-        for nom in ("Mon Projet", "a", "x" * 41, "démo"):
-            with self.assertRaises(ValueError, msg=nom):
+        for nom in ("Mon Projet", "a", "x" * 41, "démo", "demo\n"):
+            with self.assertRaises(ValueError, msg=repr(nom)):
                 Cles(self.chemin).creer(nom)
-            with self.assertRaises(ValueError, msg=nom):
+            with self.assertRaises(ValueError, msg=repr(nom)):
                 self.cles.preparer(nom, courriel="koffi@exemple.bj", maintenant=T)
 
     def test_projet_en_double_refuse(self):

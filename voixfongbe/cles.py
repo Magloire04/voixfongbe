@@ -17,7 +17,7 @@ from pathlib import Path
 from .formats import valider_courriel, valider_limite
 from .stockage import ecrire_json, lire_json, verrou
 
-NOM_PROJET = re.compile(r"^[a-z0-9-]{2,40}$")
+NOM_PROJET = re.compile(r"[a-z0-9-]{2,40}")  # toujours avec fullmatch : « $ » laisserait passer un retour à la ligne final
 LIMITE_PAR_DEFAUT = 100
 DUREE_LIEN = timedelta(days=7)
 DEFAUTS = {"empreinte": None, "cree_le": None, "limite": LIMITE_PAR_DEFAUT, "courriel": None, "nom": None,
@@ -37,7 +37,7 @@ def _iso(moment: datetime) -> str:
 
 
 def _verifier_nom(projet: str) -> None:
-    if not isinstance(projet, str) or not NOM_PROJET.match(projet):
+    if not isinstance(projet, str) or not NOM_PROJET.fullmatch(projet):
         raise ValueError("nom de projet invalide : 2 à 40 caractères parmi a-z, 0-9 et le tiret")
 
 

@@ -90,7 +90,7 @@ def proposer_nom(nom: str, organisation: str, pris: set[str]) -> str:
         suffixe = f"-{n}"
         candidat = base[:40 - len(suffixe)].rstrip("-") + suffixe
         n += 1
-    assert NOM_PROJET.match(candidat)
+    assert NOM_PROJET.fullmatch(candidat)
     return candidat
 
 
@@ -138,6 +138,7 @@ class Demandes:
             if deja >= self.par_ip:
                 raise TropDeDemandes()
             donnees["ip"]["n"][empreinte] = deja + 1
+            pris = set(pris) | {d["projet_propose"] for d in self._en_attente(donnees)}
             ident = secrets.token_hex(8)
             demande = {"id": ident, "nom": fiche["nom"], "courriel": fiche["courriel"],
                        "organisation": fiche.get("organisation", ""), "description": fiche["description"],

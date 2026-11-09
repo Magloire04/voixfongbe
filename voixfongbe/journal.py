@@ -75,7 +75,11 @@ class Journal:
         return {"demandes": len(lignes), "erreurs": sum(1 for x in lignes if (x.get("code") or 0) >= 400),
                 "temps_moyen_ms": round(sum(durees) / len(durees)) if durees else None}
 
-    def jours_disponibles(self) -> list[str]:
+    def jours_disponibles(self, aujourd_hui: date | None = None) -> list[str]:
+        """Jours qui ont un journal, plus récents d'abord. Avec aujourd_hui, les jours de plus de 90 jours
+        sont d'abord effacés : la purge ne passe qu'à l'écriture, et un service sans appel en garderait."""
+        if aujourd_hui is not None:
+            self._purger(aujourd_hui)
         jours = []
         for f in self.dossier.glob("journal-*.jsonl"):
             try:

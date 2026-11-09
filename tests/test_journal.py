@@ -92,11 +92,14 @@ class TestJournal(unittest.TestCase):
         self.assertEqual(journal.resume(self.JOUR), {"demandes": 5, "erreurs": 2, "temps_moyen_ms": 2000})
 
     def test_jours(self):
-        journal = Journal(self.dossier)
+        journal = Journal(self.dossier, jours=90)
         self.ligne(journal, 0)
         self.ligne(journal, 60 * 24)
+        vieux = self.dossier / "journal-2026-01-01.jsonl"
+        vieux.write_text("{}\n")
         (self.dossier / "autre.txt").write_text("x")
-        self.assertEqual(journal.jours_disponibles(), ["2026-11-11", "2026-11-10"])
+        self.assertEqual(journal.jours_disponibles(date(2026, 11, 11)), ["2026-11-11", "2026-11-10"])
+        self.assertFalse(vieux.exists())
 
 
 if __name__ == "__main__":

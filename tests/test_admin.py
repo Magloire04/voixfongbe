@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest import mock
 
 from tests.aides import ORIGINE, CourrielFactice, MoteurFactice, appeler
 from voixfongbe.app import creer_application
@@ -177,9 +178,26 @@ class TestAdmin(unittest.TestCase):
                          (409, "projet_pris"))
         self.assertEqual(self.code(self.post(f"/api/admin/demandes/{ident}/approuver", {"projet": "Alpha UAC"})),
                          (400, "valeur_invalide"))
+        self.assertEqual(self.code(self.post(f"/api/admin/demandes/{ident}/approuver", {"projet": "alpha\n"})),
+                         (400, "valeur_invalide"))
         self.assertEqual(self.code(self.post(f"/api/admin/demandes/{ident}/approuver", {"limite": 0})),
                          (400, "valeur_invalide"))
         self.assertEqual(self.demandes.obtenir(ident)["etat"], "en_attente")
+
+    def test_approbation_concurrente_annule_le_projet_en_trop(self):
+        """Un autre onglet (ou processus) approuve la même demande entre la création du projet et la décision."""
+        ident = self.deposer_demande()
+        original = Demandes.marquer_approuvee
+
+        def deja_traitee(demandes, ident_, projet, maintenant):
+            original(demandes, ident_, "premier", maintenant)  # l'autre onglet passe juste avant
+            original(demandes, ident_, projet, maintenant)  # lève ValueError("demande déjà traitée")
+
+        with mock.patch.object(Demandes, "marquer_approuvee", deja_traitee):
+            r = self.post(f"/api/admin/demandes/{ident}/approuver", {"projet": "en-trop"})
+        self.assertEqual(self.code(r), (409, "deja_decidee"))
+        self.assertEqual(self.cles.lister(), [])
+        self.assertEqual([e for e in self.courriel.envoyes if e["a"] == "koffi@exemple.bj"], [])
 
     def test_demande_inconnue_404(self):
         self.assertEqual(self.code(self.post(f"/api/admin/demandes/{'0' * 16}/refuser")), (404, "demande_inconnue"))

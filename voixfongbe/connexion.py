@@ -91,7 +91,19 @@ class Connexion:
 
     @staticmethod
     def _poser_mdp(d: dict, mdp: str) -> None:
-        d.update(mdp=empreinte_mdp(mdp), sessions={}, code=None)
+        # Un nouveau mot de passe lève aussi les blocages : qui l'a changé peut se connecter tout de suite.
+        d.update(mdp=empreinte_mdp(mdp), sessions={}, code=None, echecs={})
+
+    @staticmethod
+    def _echecs_vivants(d: dict, maintenant: datetime) -> dict:
+        """Les échecs qui comptent encore : un blocage en cours, ou des erreurs de moins de 10 minutes."""
+        vivants = {}
+        for cle, echec in d["echecs"].items():
+            fin = echec.get("bloque_jusqu")
+            debut = echec.get("depuis")
+            if (fin and maintenant < _date(fin)) or (debut and maintenant - _date(debut) <= BLOCAGE):
+                vivants[cle] = echec
+        return vivants
 
     def configure(self) -> bool:
         return bool(self._lire()["mdp"])
@@ -107,21 +119,26 @@ class Connexion:
     # Sessions
     def ouvrir(self, mdp: str, ip: str, maintenant: datetime) -> str | None:
         cle_ip = _sha(f"ip|{ip}")
+        neuf = {"n": 0, "depuis": None, "bloque_jusqu": None}
         with verrou(self.chemin):
             d = self._lire()
-            echec = d["echecs"].get(cle_ip, {"n": 0, "bloque_jusqu": None})
+            echec = {**neuf, **d["echecs"].get(cle_ip, {})}
             if echec["bloque_jusqu"]:
                 fin = _date(echec["bloque_jusqu"])
                 if maintenant < fin:
                     raise Bloque(_secondes(fin - maintenant))
-                echec = {"n": 0, "bloque_jusqu": None}
+                echec = dict(neuf)
+            elif echec["depuis"] and maintenant - _date(echec["depuis"]) > BLOCAGE:
+                echec = dict(neuf)  # trois erreurs comptent si elles tombent dans les mêmes 10 minutes
             if not d["mdp"]:
                 return None
             if not mdp_correct(mdp, d["mdp"]):
+                if not echec["n"]:
+                    echec["depuis"] = _iso(maintenant)
                 echec["n"] += 1
                 if echec["n"] >= ESSAIS_MDP:
-                    echec = {"n": 0, "bloque_jusqu": _iso(maintenant + BLOCAGE)}
-                d["echecs"][cle_ip] = echec
+                    echec = {**neuf, "bloque_jusqu": _iso(maintenant + BLOCAGE)}
+                d["echecs"] = {**self._echecs_vivants(d, maintenant), cle_ip: echec}
                 ecrire_json(self.chemin, d)
                 return None
             d["echecs"].pop(cle_ip, None)

@@ -146,7 +146,7 @@ def decider(ctx: Contexte, environ, m):
         return _ok(courriel_envoye=_envoyer(ctx, demande["courriel"], messages.refus(demande["nom"], motif)))
 
     projet = donnees.get("projet") or demande["projet_propose"]
-    if not isinstance(projet, str) or not NOM_PROJET.match(projet):
+    if not isinstance(projet, str) or not NOM_PROJET.fullmatch(projet):
         raise ErreurApi("valeur_invalide", message="Nom de projet : 2 à 40 caractères parmi a-z, 0-9 et le tiret.")
     try:
         limite = valider_limite(donnees.get("limite", LIMITE_PAR_DEFAUT))
@@ -160,6 +160,9 @@ def decider(ctx: Contexte, environ, m):
     try:
         ctx.demandes.marquer_approuvee(demande["id"], projet, maintenant)
     except ValueError:
+        # Approuvée entre-temps ailleurs (autre onglet, autre processus) : le projet créé ici est en trop.
+        ctx.cles.revoquer(projet, maintenant)
+        ctx.cles.supprimer(projet)
         raise ErreurApi("deja_decidee") from None
     envoye = _envoyer(ctx, demande["courriel"],
                       messages.acces_accorde(demande["nom"], _lien(ctx, jeton), limite, ctx.config.guide))
@@ -229,7 +232,7 @@ def appels(ctx: Contexte, environ, m):
         raise ErreurApi("valeur_invalide", message=f"Jour des {JOURS_APPELS} derniers jours, page à partir de 1.")
     projet = requete.get("projet", [""])[0] or None
     lu = ctx.journal.lire(jour, projet=projet, page=page_)
-    return reponse_json(200, {"jour": jour.isoformat(), "jours": ctx.journal.jours_disponibles(), "projet": projet,
+    return reponse_json(200, {"jour": jour.isoformat(), "jours": ctx.journal.jours_disponibles(aujourd_hui), "projet": projet,
                               "resume": ctx.journal.resume(jour), **lu})
 
 

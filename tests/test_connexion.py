@@ -89,6 +89,8 @@ class TestConnexion(unittest.TestCase):
 
     def test_code_change_le_mdp_et_ferme_les_sessions(self):
         jeton = self.c.ouvrir(MDP, IP, T)
+        for _ in range(3):
+            self.c.ouvrir("faux-faux-faux", IP, T)
         code = self.c.demander_code(T)
         self.assertRegex(code, r"^[0-9]{8}$")
         self.assertTrue(self.c.changer_avec_code(code, "nouveau-mot-de-passe", apres(minutes=2)))
@@ -96,6 +98,12 @@ class TestConnexion(unittest.TestCase):
         self.assertIsNone(self.c.ouvrir(MDP, IP, apres(minutes=2)))
         self.assertIsNotNone(self.c.ouvrir("nouveau-mot-de-passe", IP, apres(minutes=2)))
         self.assertFalse(self.c.changer_avec_code(code, "encore-un-autre-mdp", apres(minutes=3)))  # code usé
+
+    def test_echecs_anciens_oublies_apres_10_minutes(self):
+        for _ in range(2):
+            self.c.ouvrir("faux-faux-faux", IP, T)
+        self.assertIsNone(self.c.ouvrir("faux-faux-faux", IP, apres(minutes=10, seconds=1)))
+        self.assertIsNotNone(self.c.ouvrir(MDP, IP, apres(minutes=10, seconds=2)))
 
     def test_nouveau_mdp_trop_court_ne_consomme_pas_d_essai(self):
         code = self.c.demander_code(T)

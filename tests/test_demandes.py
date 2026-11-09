@@ -89,9 +89,11 @@ class TestDemandes(unittest.TestCase):
 
     def test_depot_garde_la_demande_et_propose_un_nom(self):
         fiche = self.deposer()
+        seconde = self.deposer()
         self.assertRegex(fiche["id"], r"^[0-9a-f]{16}$")
         self.assertEqual((fiche["etat"], fiche["projet_propose"], fiche["nom"]), ("en_attente", "uac", "Koffi A."))
-        self.assertEqual([d["id"] for d in Demandes(self.chemin).en_attente()], [fiche["id"]])
+        self.assertEqual(seconde["projet_propose"], "uac-2")
+        self.assertEqual([d["id"] for d in Demandes(self.chemin).en_attente()], [fiche["id"], seconde["id"]])
         self.assertEqual(Demandes(self.chemin).obtenir(fiche["id"])["courriel"], "koffi@exemple.bj")
         self.assertIsNone(self.demandes.obtenir("0" * 16))
 
