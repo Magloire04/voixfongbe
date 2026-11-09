@@ -3,7 +3,7 @@ import unicodedata
 import unittest
 from pathlib import Path
 
-from voixfongbe.texte import caracteres_ignores, charger_vocabulaire, identifiants, preparer
+from voixfongbe.texte import caracteres_ignores, charger_vocabulaire, decouper, identifiants, preparer
 
 DONNEES = Path(__file__).resolve().parent / "donnees"
 VOCAB = charger_vocabulaire(DONNEES / "vocab.json")
@@ -63,6 +63,26 @@ class TestTexte(unittest.TestCase):
     def test_blancs_deviennent_une_espace(self):
         for texte in ("Mi kú\nabɔ", "Mi kú\tabɔ", "Mi kú abɔ", "Mi kú\r\n abɔ"):
             self.assertEqual(preparer(texte, VOCAB), "mi kú abɔ", repr(texte))
+
+    # Synthèse par morceaux (mémoire bornée)
+    def test_decouper_garde_un_texte_court_entier(self):
+        self.assertEqual(decouper("Mi kú abɔ. Un na xlɛ́ mi.", 120), ["Mi kú abɔ. Un na xlɛ́ mi."])
+
+    def test_decouper_regroupe_les_phrases_jusqu_au_maximum(self):
+        phrases = ["Mi kú abɔ ɖo gle ɔ mɛ."] * 10  # 22 caractères chacune
+        morceaux = decouper(" ".join(phrases), 50)
+        self.assertEqual(morceaux, ["Mi kú abɔ ɖo gle ɔ mɛ. Mi kú abɔ ɖo gle ɔ mɛ."] * 5)
+
+    def test_decouper_coupe_une_phrase_trop_longue_aux_virgules_puis_aux_espaces(self):
+        texte = "mi zìn mikló ɔ, mi ɖɔ nǔ ɔ sín nyǐkɔ kpo axi ɔ sín nyǐkɔ kpo, bo lɛ́ zìn ényí mi fó xó ɔ"
+        morceaux = decouper(texte, 30)
+        self.assertTrue(all(len(m) <= 30 for m in morceaux), morceaux)
+        self.assertEqual(" ".join(morceaux).split(), texte.split())  # aucun mot coupé ni perdu
+        self.assertTrue(morceaux[0].endswith(","))
+
+    def test_decouper_ne_garde_pas_de_morceau_vide(self):
+        self.assertEqual(decouper("  Mi kú.  \n\n  Abɔ !  ", 120), ["Mi kú. Abɔ !"])
+        self.assertEqual(decouper("   ", 120), [])
 
     def test_apostrophe_typographique_devient_apostrophe(self):
         for apostrophe in ("’", "‘", "ʼ"):

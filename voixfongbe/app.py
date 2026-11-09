@@ -18,14 +18,18 @@ from concurrent.futures import TimeoutError as DelaiDepasse
 from datetime import datetime, timezone
 from http import HTTPStatus
 
-from .audio import en_mp3, en_wav
+import numpy
+
+from .audio import TAUX, en_mp3, en_wav
 from .cache import Cache
 from .cles import Cles
 from .config import Config
 from .journal import Journal
 from .moteur import ModeleIndisponible, Moteur
 from .quotas import Quotas
-from .texte import caracteres_ignores, identifiants, preparer
+from .texte import caracteres_ignores, decouper, identifiants, preparer
+
+PAUSE_S = 0.15  # entre deux morceaux d'un long texte
 
 LICENCE = "MMS-TTS de Meta, CC BY-NC 4.0"
 SECURITE = [
@@ -92,9 +96,15 @@ def creer_application(config: Config, moteur=None, horloge=None):
     # qu'à la fin réelle du calcul, même si la demande a abandonné entre-temps.
     occupe = threading.Lock()
 
-    def fabriquer(ids: list[int], format_: str, cle_cache: str) -> bytes:
+    def fabriquer(morceaux: list[list[int]], format_: str, cle_cache: str) -> bytes:
         try:
-            echantillons = moteur.synthetiser(ids)
+            pause = numpy.zeros(int(PAUSE_S * TAUX), dtype=numpy.float32)
+            sons = []
+            for i, ids in enumerate(morceaux):  # morceau par morceau : la mémoire reste bornée
+                if i:
+                    sons.append(pause)
+                sons.append(moteur.synthetiser(ids))
+            echantillons = numpy.concatenate(sons)
             son = en_mp3(echantillons) if format_ == "mp3" else en_wav(echantillons)
             cache.ecrire(cle_cache, son)  # même en retard : le prochain essai le trouvera tout de suite
             return son
@@ -142,8 +152,8 @@ def creer_application(config: Config, moteur=None, horloge=None):
         if not moteur.pret():
             raise ErreurApi("modele_indisponible")
         vocabulaire = moteur.vocabulaire
-        prepare = preparer(texte, vocabulaire)
-        if not prepare:
+        prepares = [p for p in (preparer(m, vocabulaire) for m in decouper(texte, config.max_morceau)) if p]
+        if not prepares:
             raise ErreurApi("texte_vide")
 
         maintenant = horloge()
@@ -151,14 +161,15 @@ def creer_application(config: Config, moteur=None, horloge=None):
         if attente is not None:
             raise ErreurApi("quota_jour", [("Retry-After", str(attente))])
         try:
-            cle_cache = Cache.cle(moteur.version, format_, prepare)
+            cle_cache = Cache.cle(moteur.version, format_, "\n".join(prepares))
             son = cache.lire(cle_cache)
             suivi["cache"] = son is not None
             if son is None:
                 if not occupe.acquire(blocking=False):
                     raise ErreurApi("voix_occupee", [("Retry-After", "5")])
                 try:
-                    tache = executeur.submit(fabriquer, identifiants(prepare, vocabulaire), format_, cle_cache)
+                    tache = executeur.submit(fabriquer, [identifiants(p, vocabulaire) for p in prepares],
+                                             format_, cle_cache)
                 except BaseException:
                     occupe.release()
                     raise

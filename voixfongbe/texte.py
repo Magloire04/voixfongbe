@@ -73,6 +73,49 @@ def identifiants(texte_prepare: str, vocabulaire: Mapping[str, int]) -> list[int
     return ids
 
 
+def decouper(texte: str, maximum: int) -> list[str]:
+    """Coupe le texte en morceaux d'au plus `maximum` caractères, dits l'un après l'autre.
+
+    La mémoire de la voix croît avec la longueur de ce qu'elle dit d'un coup (400 Mo pour 100
+    caractères, 1,5 Go pour 1 000) : par morceaux, elle reste bornée. Les phrases sont regroupées
+    tant qu'elles tiennent ; une phrase trop longue est coupée après ses virgules, puis entre ses
+    mots. Aucun mot n'est coupé.
+    """
+    morceaux: list[str] = []
+
+    def ajouter(bout: str) -> None:
+        if morceaux and len(morceaux[-1]) + 1 + len(bout) <= maximum:
+            morceaux[-1] += " " + bout
+        else:
+            morceaux.append(bout)
+
+    for phrase in re.findall(r"[^.?!]+[.?!]*", " ".join(texte.split())):
+        phrase = phrase.strip()
+        if not phrase:
+            continue
+        if len(phrase) <= maximum:
+            ajouter(phrase)
+            continue
+        for proposition in re.findall(r"[^,;:]+[,;:]*", phrase):
+            proposition = proposition.strip()
+            if not proposition:
+                continue
+            if len(proposition) <= maximum:
+                ajouter(proposition)
+                continue
+            # Trop longue même seule : morceaux de mots, commencés à neuf pour garder la coupure.
+            courant = ""
+            for mot in proposition.split():
+                if courant and len(courant) + 1 + len(mot) > maximum:
+                    morceaux.append(courant)
+                    courant = mot
+                else:
+                    courant = f"{courant} {mot}" if courant else mot
+            if courant:
+                morceaux.append(courant)
+    return morceaux
+
+
 def caracteres_ignores(texte: str, vocabulaire: Mapping[str, int]) -> int:
     """Caractères qui ne laissent aucun symbole (chiffres, émojis, lettres inconnues...),
     sans compter les espaces ni la ponctuation, qui deviennent des pauses."""
