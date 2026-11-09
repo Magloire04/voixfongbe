@@ -23,6 +23,11 @@ def _date(moment: datetime) -> str:
     return f"{local.day} {MOIS[local.month - 1]} {local.year} à {local.hour} h {local.minute:02d}"
 
 
+def _bonjour(nom: str | None) -> str:
+    """Un projet créé en SSH n'a pas de nom de personne : « Bonjour, » plutôt que « Bonjour , »."""
+    return f"Bonjour {nom},\n" if nom else "Bonjour,\n"
+
+
 def _consignes(lien: str, limite: int, guide: str) -> str:
     return (f"Ouvrez ce lien pour afficher votre clé d'accès :\n{lien}\n\n"
             "Le lien est valable 7 jours. La clé ne s'affiche qu'une seule fois : copiez-la dès qu'elle "
@@ -45,18 +50,18 @@ def annonce_demande(demande: dict, lien_admin: str) -> tuple[str, str]:
 
 def acces_accorde(nom: str, lien: str, limite: int, guide: str) -> tuple[str, str]:
     return ("Votre accès à la voix fon",
-            f"Bonjour {nom},\n\nVotre demande d'accès à la voix fon est acceptée.\n\n"
+            _bonjour(nom) + "\nVotre demande d'accès à la voix fon est acceptée.\n\n"
             + _consignes(lien, limite, guide))
 
 
 def nouveau_lien(nom: str, lien: str, limite: int, guide: str) -> tuple[str, str]:
     return ("Votre nouveau lien d'accès à la voix fon",
-            f"Bonjour {nom},\n\nVoici un nouveau lien d'accès à la voix fon. Si vous aviez déjà une clé, "
+            _bonjour(nom) + "\nVoici un nouveau lien d'accès à la voix fon. Si vous aviez déjà une clé, "
             "elle ne fonctionne plus : remplacez-la par la nouvelle.\n\n" + _consignes(lien, limite, guide))
 
 
 def refus(nom: str, motif: str | None) -> tuple[str, str]:
-    texte = f"Bonjour {nom},\n\nVotre demande d'accès à la voix fon n'a pas été retenue.\n"
+    texte = _bonjour(nom) + "\nVotre demande d'accès à la voix fon n'a pas été retenue.\n"
     if motif:
         texte += f"\nMotif : {motif}\n"
     texte += f"\nPour en parler, écrivez à {CONTACT}.\n\n{SIGNATURE}\n"

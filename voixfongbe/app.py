@@ -4,7 +4,8 @@
     POST /v1/synthese   {"texte": "...", "format": "mp3" | "wav"} avec « Authorization: Bearer <clé> »
     GET  /robots.txt    refuse tous les robots
 
-Plus les pages publiques (demande d'accès, lien d'accès, fichiers statiques : publiques.py).
+Plus les pages publiques (demande d'accès, lien d'accès, fichiers statiques : publiques.py) et
+l'espace d'administration (/admin et /api/admin/… : admin.py).
 
 Pas de CORS : le service s'appelle depuis le serveur d'un projet, où la clé reste cachée.
 """
@@ -21,7 +22,7 @@ from http import HTTPStatus
 
 import numpy
 
-from . import publiques
+from . import admin, publiques
 from .audio import TAUX, en_mp3, en_wav
 from .cache import Cache
 from .cles import Cles
@@ -174,6 +175,7 @@ def creer_application(config: Config, moteur=None, horloge=None, courriel=None):
         (re.compile(r"/v1/synthese"), frozenset({"POST"}), route_synthese),
         (re.compile(r"/robots\.txt"), frozenset({"GET"}), route_robots),
         *((motif, methodes, depuis(f)) for motif, methodes, f in publiques.ROUTES),
+        *((motif, methodes, depuis(f)) for motif, methodes, f in admin.ROUTES),
     ]
 
     def traiter(environ, suivi: dict):

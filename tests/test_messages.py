@@ -25,6 +25,11 @@ class TestMessages(unittest.TestCase):
         for attendu in (LIEN, GUIDE, "200 demandes par jour", MENTION, "ne fonctionne plus"):
             self.assertIn(attendu, texte)
 
+    def test_sans_nom_de_personne(self):
+        for fonction in (messages.acces_accorde, messages.nouveau_lien):
+            self.assertTrue(fonction("", LIEN, 100, GUIDE)[1].startswith("Bonjour,\n"))
+        self.assertTrue(messages.refus(None, None)[1].startswith("Bonjour,\n"))
+
     def test_refus_avec_et_sans_motif(self):
         _, avec = messages.refus("Koffi A.", "Projet commercial.")
         _, sans = messages.refus("Koffi A.", None)
