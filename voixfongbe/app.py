@@ -27,6 +27,7 @@ from .config import Config
 from .journal import Journal
 from .moteur import ModeleIndisponible, Moteur
 from .quotas import Quotas
+from .reglages import Reglages
 from .texte import borner, caracteres_ignores, decouper, identifiants, preparer
 
 PAUSE_S = 0.15  # entre deux morceaux d'un long texte
@@ -88,7 +89,8 @@ def creer_application(config: Config, moteur=None, horloge=None):
     horloge = horloge or (lambda: datetime.now(timezone.utc))
     stockage = config.dossier_stockage
     cles = Cles(stockage / "cles.json")
-    quotas = Quotas(stockage / "quotas.json", config.par_cle, config.total_jour)
+    quotas = Quotas(stockage / "quotas.json", total=config.total_jour)
+    reglages = Reglages(stockage / "reglages.json", config.adresse_annonces, config.total_jour)
     cache = Cache(stockage / "cache", config.plafond_cache)
     journal = Journal(stockage / "journal")
     executeur = ThreadPoolExecutor(max_workers=1)
@@ -160,7 +162,8 @@ def creer_application(config: Config, moteur=None, horloge=None):
             raise ErreurApi("texte_vide")
 
         maintenant = horloge()
-        attente = quotas.consommer(projet, maintenant)
+        attente = quotas.consommer(projet, maintenant, limite=cles.limite(projet),
+                                   plafond=reglages.lire()["plafond"])
         if attente is not None:
             raise ErreurApi("quota_jour", [("Retry-After", str(attente))])
         try:

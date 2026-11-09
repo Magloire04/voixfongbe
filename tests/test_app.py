@@ -1,3 +1,4 @@
+import hashlib
 import json
 import threading
 import time
@@ -12,6 +13,7 @@ from voixfongbe.app import creer_application
 from voixfongbe.cles import Cles
 from voixfongbe.config import Config
 from voixfongbe.quotas import FUSEAU
+from voixfongbe.reglages import Reglages
 
 T = datetime(2026, 11, 9, 22, 30, tzinfo=FUSEAU)
 SECURITE = {"Strict-Transport-Security": "max-age=31536000", "X-Content-Type-Options": "nosniff",
@@ -27,7 +29,10 @@ class TestApp(unittest.TestCase):
         self.cle = Cles(self.config.dossier_stockage / "cles.json").creer("demo")
         self.auth = {"Authorization": f"Bearer {self.cle}"}
 
-    def app(self, moteur=None, **reglages):
+    def app(self, moteur=None, par_cle=None, **reglages):
+        """par_cle : limite quotidienne du projet « demo » (elle vit dans le fichier des clés)."""
+        if par_cle is not None:
+            Cles(self.config.dossier_stockage / "cles.json").changer_limite("demo", par_cle)
         config = Config(**{**self.config.__dict__, **reglages})
         return creer_application(config, moteur or MoteurFactice(), horloge=lambda: T)
 
@@ -92,6 +97,35 @@ class TestApp(unittest.TestCase):
         self.synthese(app, {"texte": "mi"})
         statut, entetes, corps = self.synthese(app, {"texte": "kú"})
         self.assertEqual((statut, json.loads(corps)["code"], entetes["Retry-After"]), (429, "quota_jour", "5400"))
+
+    def test_limite_du_projet_appliquee(self):
+        Cles(self.config.dossier_stockage / "cles.json").changer_limite("demo", 1)
+        app = self.app()
+        self.assertEqual(self.synthese(app, {"texte": "mi"})[0], 200)
+        self.assertEqual(self.code(self.synthese(app, {"texte": "kú"})), (429, "quota_jour"))
+
+    def test_plafond_commun_des_reglages(self):
+        stockage = self.config.dossier_stockage
+        Reglages(stockage / "reglages.json", "eliseeatonde@gmail.com", 300).modifier(plafond=1)
+        autre = Cles(stockage / "cles.json").creer("autre")
+        app = self.app()
+        self.assertEqual(self.synthese(app, {"texte": "mi"})[0], 200)
+        r = self.synthese(app, {"texte": "kú"}, {"Authorization": f"Bearer {autre}"})
+        self.assertEqual(self.code(r), (429, "quota_jour"))
+
+    def test_limite_baissee_sous_le_compte_du_jour(self):
+        app = self.app()
+        for texte in ("mi", "kú"):
+            self.assertEqual(self.synthese(app, {"texte": texte})[0], 200)
+        Cles(self.config.dossier_stockage / "cles.json").changer_limite("demo", 1)
+        self.assertEqual(self.code(self.synthese(app, {"texte": "abɔ"})), (429, "quota_jour"))
+
+    def test_cle_a_l_ancien_format_marche(self):  # point de vigilance 2
+        chemin = self.config.dossier_stockage / "cles.json"
+        chemin.write_text(json.dumps({"projets": {"projet-collegue": {
+            "empreinte": hashlib.sha256(b"cle-ancienne").hexdigest(), "cree_le": "2026-11-09T12:00:00+00:00"}}}))
+        r = self.synthese(self.app(), {"texte": "mi"}, {"Authorization": "Bearer cle-ancienne"})
+        self.assertEqual(r[0], 200)
 
     # 7. Modèle
     def test_modele_absent_503(self):
