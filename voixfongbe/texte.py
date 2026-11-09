@@ -106,6 +106,12 @@ def decouper(texte: str, maximum: int) -> list[str]:
             # Trop longue même seule : morceaux de mots, commencés à neuf pour garder la coupure.
             courant = ""
             for mot in proposition.split():
+                while len(mot) > maximum:  # un « mot » sans espace plus long que le maximum est coupé
+                    if courant:
+                        morceaux.append(courant)
+                        courant = ""
+                    morceaux.append(mot[:maximum])
+                    mot = mot[maximum:]
                 if courant and len(courant) + 1 + len(mot) > maximum:
                     morceaux.append(courant)
                     courant = mot
@@ -113,6 +119,20 @@ def decouper(texte: str, maximum: int) -> list[str]:
                     courant = f"{courant} {mot}" if courant else mot
             if courant:
                 morceaux.append(courant)
+    return morceaux
+
+
+def borner(texte_prepare: str, maximum: int) -> list[str]:
+    """Dernier garde-fou après preparer() : une lettre accentuée peut y devenir deux symboles (ń
+    devient n + accent), donc un morceau peut s'allonger. Aucun morceau ne dépasse `maximum`
+    symboles, et un accent n'est jamais séparé de sa lettre."""
+    morceaux, debut = [], 0
+    while debut < len(texte_prepare):
+        fin = min(debut + maximum, len(texte_prepare))
+        while debut + 1 < fin < len(texte_prepare) and unicodedata.combining(texte_prepare[fin]):
+            fin -= 1
+        morceaux.append(texte_prepare[debut:fin])
+        debut = fin
     return morceaux
 
 

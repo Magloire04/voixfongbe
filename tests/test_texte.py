@@ -3,7 +3,7 @@ import unicodedata
 import unittest
 from pathlib import Path
 
-from voixfongbe.texte import caracteres_ignores, charger_vocabulaire, decouper, identifiants, preparer
+from voixfongbe.texte import borner, caracteres_ignores, charger_vocabulaire, decouper, identifiants, preparer
 
 DONNEES = Path(__file__).resolve().parent / "donnees"
 VOCAB = charger_vocabulaire(DONNEES / "vocab.json")
@@ -83,6 +83,21 @@ class TestTexte(unittest.TestCase):
     def test_decouper_ne_garde_pas_de_morceau_vide(self):
         self.assertEqual(decouper("  Mi kú.  \n\n  Abɔ !  ", 120), ["Mi kú. Abɔ !"])
         self.assertEqual(decouper("   ", 120), [])
+
+    def test_decouper_coupe_un_mot_trop_long(self):
+        morceaux = decouper("a" * 300, 120)
+        self.assertTrue(all(len(m) <= 120 for m in morceaux), [len(m) for m in morceaux])
+        self.assertEqual("".join(morceaux), "a" * 300)
+
+    def test_borner_coupe_un_texte_prepare_trop_long_sans_isoler_un_accent(self):
+        prepare = "ń" * 100  # 200 symboles : ń décomposé
+        morceaux = borner(prepare, 120)
+        self.assertTrue(all(len(m) <= 120 for m in morceaux), [len(m) for m in morceaux])
+        self.assertEqual("".join(morceaux), prepare)
+        self.assertFalse(any(unicodedata.combining(m[0]) for m in morceaux))
+
+    def test_borner_laisse_un_texte_court_intact(self):
+        self.assertEqual(borner("mi kú abɔ", 120), ["mi kú abɔ"])
 
     def test_apostrophe_typographique_devient_apostrophe(self):
         for apostrophe in ("’", "‘", "ʼ"):

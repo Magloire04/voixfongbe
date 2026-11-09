@@ -27,7 +27,7 @@ from .config import Config
 from .journal import Journal
 from .moteur import ModeleIndisponible, Moteur
 from .quotas import Quotas
-from .texte import caracteres_ignores, decouper, identifiants, preparer
+from .texte import borner, caracteres_ignores, decouper, identifiants, preparer
 
 PAUSE_S = 0.15  # entre deux morceaux d'un long texte
 
@@ -152,7 +152,10 @@ def creer_application(config: Config, moteur=None, horloge=None):
         if not moteur.pret():
             raise ErreurApi("modele_indisponible")
         vocabulaire = moteur.vocabulaire
-        prepares = [p for p in (preparer(m, vocabulaire) for m in decouper(texte, config.max_morceau)) if p]
+        # decouper() borne le texte reçu, borner() le texte préparé : aucun morceau ne dépasse
+        # max_morceau symboles, quelle que soit l'entrée (mot sans espace, accents décomposés).
+        prepares = [b for m in decouper(texte, config.max_morceau)
+                    for b in borner(preparer(m, vocabulaire), config.max_morceau)]
         if not prepares:
             raise ErreurApi("texte_vide")
 
