@@ -1,0 +1,9 @@
+# Outils du PC seulement (conversion et vérification) : jamais installés sur le serveur.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.4
+transformers>=4.45
+optimum-onnx
+onnx
+onnxruntime
+numpy
+scipy
