@@ -6,3 +6,5 @@ fidelite/
 __pycache__/
 *.pyc
 .superpowers/
+tmp/
+stderr.log
