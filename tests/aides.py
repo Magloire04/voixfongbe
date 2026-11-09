@@ -61,20 +61,24 @@ class CourrielFactice:
         return True
 
 
-def appeler(app, methode: str, chemin: str, corps=None, entetes: dict | None = None):
-    """Rend (statut, entêtes, corps). corps : dict (envoyé en JSON), bytes ou None."""
+ORIGINE = {"Origin": "https://voix.bytechnum.com"}
+
+
+def appeler(app, methode: str, chemin: str, corps=None, entetes: dict | None = None, requete: str = ""):
+    """Rend (statut, entêtes, corps). corps : dict (envoyé en JSON), bytes ou None ; requete : QUERY_STRING."""
     if isinstance(corps, (dict, list)):
         donnees = json.dumps(corps).encode("utf-8")
     else:
         donnees = corps or b""
     environ = {
-        "REQUEST_METHOD": methode, "PATH_INFO": chemin, "QUERY_STRING": "", "SERVER_NAME": "voix.bytechnum.com",
-        "SERVER_PORT": "443", "HTTP_HOST": "voix.bytechnum.com", "wsgi.url_scheme": "https",
-        "wsgi.input": io.BytesIO(donnees), "wsgi.errors": io.StringIO(), "CONTENT_LENGTH": str(len(donnees)),
-        "CONTENT_TYPE": "application/json",
+        "REQUEST_METHOD": methode, "PATH_INFO": chemin, "QUERY_STRING": requete,
+        "SERVER_NAME": "voix.bytechnum.com", "SERVER_PORT": "443", "HTTP_HOST": "voix.bytechnum.com",
+        "wsgi.url_scheme": "https", "wsgi.input": io.BytesIO(donnees), "wsgi.errors": io.StringIO(),
+        "CONTENT_LENGTH": str(len(donnees)), "CONTENT_TYPE": "application/json",
     }
     for nom, valeur in (entetes or {}).items():
-        environ["HTTP_" + nom.upper().replace("-", "_")] = valeur
+        cle = nom.upper().replace("-", "_")
+        environ[cle if cle in ("CONTENT_TYPE", "CONTENT_LENGTH") else "HTTP_" + cle] = valeur
     recu = {}
 
     def start_response(statut, liste, exc_info=None):
