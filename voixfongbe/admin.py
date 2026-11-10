@@ -51,6 +51,14 @@ def _envoyer(ctx: Contexte, destinataire: str, sujet_texte: tuple[str, str]) -> 
     return ctx.courriel.envoyer(destinataire, *sujet_texte)
 
 
+def _exiger_envoi(ctx: Contexte) -> None:
+    """Avant une action dont l'e-mail est le seul moyen de prévenir la personne : sans boîte d'envoi
+    configurée, rien ne change (une « Nouvelle clé » couperait sinon la clé en service sans rien envoyer).
+    Un envoi qui échoue une fois configuré, lui, n'annule pas la décision."""
+    if not ctx.courriel.configure():
+        raise ErreurApi("smtp_absent")
+
+
 def _lien(ctx: Contexte, jeton: str) -> str:
     return f"https://{ctx.config.hote}/acces/{jeton}"
 
@@ -134,6 +142,7 @@ def decider(ctx: Contexte, environ, m):
         raise ErreurApi("demande_inconnue")
     if demande["etat"] != "en_attente":
         raise ErreurApi("deja_decidee")
+    _exiger_envoi(ctx)
     if m["action"] == "refuser":
         motif = donnees.get("motif")
         if motif is not None and (not isinstance(motif, str) or len(motif.strip()) > MOTIF_MAX):
@@ -212,6 +221,7 @@ def agir_projet(ctx: Contexte, environ, m):
         raise ErreurApi("etat_incompatible")
     if not fiche["courriel"]:
         raise ErreurApi("courriel_absent")
+    _exiger_envoi(ctx)
     jeton = ctx.cles.nouveau_lien(projet, maintenant)
     envoye = _envoyer(ctx, fiche["courriel"],
                       messages.nouveau_lien(fiche["nom"], _lien(ctx, jeton), fiche["limite"], ctx.config.guide))

@@ -60,7 +60,7 @@ class Courriel:
             return False
         try:
             self.transport(message, reglages)
-        except (smtplib.SMTPException, OSError) as e:
+        except Exception as e:  # noqa: BLE001 : quoi qu'il arrive, l'appelant doit pouvoir dire « non parti »
             # Seul le type de l'erreur : le message du serveur pourrait citer un identifiant.
             print(f"envoi d'e-mail impossible : {type(e).__name__}", file=sys.stderr)
             return False

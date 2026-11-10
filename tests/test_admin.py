@@ -249,6 +249,21 @@ class TestAdmin(unittest.TestCase):
         self.assertTrue(self.courriel.envoyes[-1]["texte"].startswith("Bonjour,"))
         self.assertIsNone(self.cles.verifier(ancienne))
 
+    def test_sans_envoi_configure_rien_ne_change(self):
+        """Une action qui doit envoyer un e-mail ne casse rien quand l'envoi n'est pas encore configuré."""
+        ancienne = self.cles.creer("projet-collegue")
+        self.cles.changer_courriel("projet-collegue", "collegue@exemple.bj")
+        jeton = self.cles.preparer("alpha", courriel="alpha@exemple.bj", maintenant=T)
+        ident = self.deposer_demande()
+        self.courriel.configure_ = False
+        for chemin in ("/api/admin/projets/projet-collegue/nouvelle-cle", "/api/admin/projets/alpha/nouveau-lien",
+                       f"/api/admin/demandes/{ident}/approuver", f"/api/admin/demandes/{ident}/refuser"):
+            self.assertEqual(self.code(self.post(chemin)), (503, "smtp_absent"), chemin)
+        self.assertEqual(self.cles.verifier(ancienne), "projet-collegue")
+        self.assertEqual(self.cles.lien_valide(jeton, T), "alpha")
+        self.assertEqual(self.demandes.obtenir(ident)["etat"], "en_attente")
+        self.assertEqual([p["projet"] for p in self.cles.lister(T)], ["alpha", "projet-collegue"])
+
     def test_nouveau_lien_refuse_pour_un_projet_actif(self):
         self.cles.creer("demo")
         self.cles.changer_courriel("demo", "demo@exemple.bj")

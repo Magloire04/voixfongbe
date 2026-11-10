@@ -82,6 +82,14 @@ class TestPubliques(unittest.TestCase):
         self.assertEqual(self.code(r), (429, "trop_de_demandes"))
         self.assertEqual(self.deposer({**ORIGINE, "X-Forwarded-For": "203.0.113.7, 198.51.100.4"})[0], 200)
 
+    def test_en_tete_invente_ne_contourne_pas_la_limite(self):
+        # Client vu en direct (pas de relais local) : un X-Forwarded-For différent à chaque essai ne change rien.
+        for i in range(3):
+            r = self.deposer({**ORIGINE, "Remote-Addr": "41.138.89.7", "X-Forwarded-For": f"203.0.113.{i}"})
+            self.assertEqual(r[0], 200)
+        r = self.deposer({**ORIGINE, "Remote-Addr": "41.138.89.7", "X-Forwarded-For": "203.0.113.99"})
+        self.assertEqual(self.code(r), (429, "trop_de_demandes"))
+
     def test_demandes_fermees(self):
         remplies = Demandes(self.config.dossier_stockage / "demandes.json", par_ip=1000)
         for _ in range(50):

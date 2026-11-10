@@ -73,6 +73,11 @@ def smtp(config: Config, stockage: Path) -> int:
     if not mot_de_passe:
         print("Erreur : mot de passe vide. Rien n'a été enregistré.", file=sys.stderr)
         return 1
+    if not mot_de_passe.isascii():
+        # La connexion SMTP de Python n'accepte que l'ASCII : chaque envoi échouerait.
+        print("Erreur : le mot de passe de la boîte contient un accent ou un caractère spécial non ASCII ; "
+              "changez-le chez Spacemail. Rien n'a été enregistré.", file=sys.stderr)
+        return 1
     ecrire_reglages(stockage / "smtp.json", hote=hote, port=port, utilisateur=utilisateur,
                     mot_de_passe=mot_de_passe, expediteur=expediteur)
     print("Boîte d'envoi enregistrée (stockage/smtp.json, droits 600).")

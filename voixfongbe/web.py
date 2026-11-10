@@ -5,6 +5,7 @@ Les pages, feuilles de style, scripts et polices sont dans voixfongbe/web/ et pa
 l'application : jamais par un dossier public/, que le serveur servirait sans contrôle.
 """
 
+import ipaddress
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -39,10 +40,26 @@ class Contexte:
     journal: object
 
 
+def _relais_local(adresse: str | None) -> bool:
+    """Vrai si la connexion vient d'un relais sur la même machine ou le même réseau (LiteSpeed)."""
+    if not adresse:
+        return True
+    try:
+        ip = ipaddress.ip_address(adresse)
+    except ValueError:
+        return True
+    return ip.is_loopback or ip.is_private
+
+
 def ip_client(environ) -> str:
-    """Dernière entrée de X-Forwarded-For : celle qu'ajoute le serveur frontal, pas le client."""
+    """L'adresse du visiteur. Derrière un relais local (LiteSpeed sur ce serveur : l'application voit
+    127.0.0.1), c'est la dernière entrée de X-Forwarded-For, celle que le relais ajoute. Sans relais,
+    c'est l'adresse vue directement : l'en-tête viendrait alors du client, qui pourrait l'inventer."""
+    distante = environ.get("REMOTE_ADDR")
+    if not _relais_local(distante):
+        return distante
     entrees = [x.strip() for x in environ.get("HTTP_X_FORWARDED_FOR", "").split(",") if x.strip()]
-    return entrees[-1] if entrees else environ.get("REMOTE_ADDR") or "inconnue"
+    return entrees[-1] if entrees else distante or "inconnue"
 
 
 def meme_origine(environ, hote: str) -> bool:

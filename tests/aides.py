@@ -75,10 +75,11 @@ def appeler(app, methode: str, chemin: str, corps=None, entetes: dict | None = N
         "SERVER_NAME": "voix.bytechnum.com", "SERVER_PORT": "443", "HTTP_HOST": "voix.bytechnum.com",
         "wsgi.url_scheme": "https", "wsgi.input": io.BytesIO(donnees), "wsgi.errors": io.StringIO(),
         "CONTENT_LENGTH": str(len(donnees)), "CONTENT_TYPE": "application/json",
+        "REMOTE_ADDR": "127.0.0.1",  # comme sur le serveur : LiteSpeed relaie en local
     }
     for nom, valeur in (entetes or {}).items():
         cle = nom.upper().replace("-", "_")
-        environ[cle if cle in ("CONTENT_TYPE", "CONTENT_LENGTH") else "HTTP_" + cle] = valeur
+        environ[cle if cle in ("CONTENT_TYPE", "CONTENT_LENGTH", "REMOTE_ADDR") else "HTTP_" + cle] = valeur
     recu = {}
 
     def start_response(statut, liste, exc_info=None):

@@ -76,6 +76,13 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse((self.stockage / "smtp.json").exists())
 
+    def test_smtp_mot_de_passe_accentue_refuse(self):
+        code, sortie = self.lancer(self.admin, ["smtp"], saisies=["", "", "envoi@bytechnum.com", ""],
+                                   secrets=["mot-de-passe-accentué"])
+        self.assertEqual(code, 1)
+        self.assertIn("accent", sortie)
+        self.assertFalse((self.stockage / "smtp.json").exists())
+
     def test_essai_smtp(self):
         code, sortie = self.lancer(self.admin, ["essai-smtp"])
         self.assertEqual(code, 1)

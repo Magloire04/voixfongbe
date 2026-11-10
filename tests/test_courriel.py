@@ -62,6 +62,17 @@ class TestCourriel(unittest.TestCase):
         self.assertIn("SMTPAuthenticationError", erreurs.getvalue())
         self.assertNotIn("mdp-tres-secret-42", erreurs.getvalue())
 
+    def test_toute_erreur_du_transport_rend_false(self):
+        # smtplib encode l'identifiant en ASCII : un mot de passe accentué lève UnicodeEncodeError.
+        def accent(message, reglages):
+            "mdp-é".encode("ascii")
+
+        ecrire_reglages(self.chemin, **REGLAGES)
+        erreurs = io.StringIO()
+        with contextlib.redirect_stderr(erreurs):
+            self.assertFalse(Courriel(self.chemin, transport=accent).envoyer("koffi@exemple.bj", "S", "T"))
+        self.assertIn("UnicodeEncodeError", erreurs.getvalue())
+
     def test_transport_par_defaut_en_tls_465(self):
         ecrire_reglages(self.chemin, **REGLAGES)
         with mock.patch("smtplib.SMTP_SSL") as smtp_ssl:
