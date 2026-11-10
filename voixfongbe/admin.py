@@ -13,7 +13,7 @@ from urllib.parse import parse_qs
 from . import messages
 from .cles import LIMITE_PAR_DEFAUT, NOM_PROJET
 from .connexion import Bloque, PasConfigure, TropDeCodes
-from .formats import valider_limite
+from .formats import valider_courriel, valider_limite
 from .quotas import FUSEAU
 from .reponses import ErreurApi, reponse_json
 from .web import Contexte, controler_post, ip_client, lire_cookie, lire_corps_json, page
@@ -268,10 +268,32 @@ def appels(ctx: Contexte, environ, m):
 def reglages(ctx: Contexte, environ, m):
     if environ["REQUEST_METHOD"] == "POST":
         donnees = lire_corps_json(environ, ctx.config.max_corps)
+        maintenant = ctx.horloge()
+        ancienne = ctx.reglages.lire()["adresse"]
+        adresse = donnees.get("adresse")
         try:
-            ctx.reglages.modifier(adresse=donnees.get("adresse"), plafond=donnees.get("plafond"))
+            adresse = valider_courriel(adresse) if adresse is not None else None
+            plafond = donnees.get("plafond")
+            if plafond is not None:
+                valider_limite(plafond)
         except ValueError as e:
             raise ErreurApi("valeur_invalide", message=f"{str(e)[:1].upper()}{str(e)[1:]}.") from None
+        change_adresse = adresse is not None and adresse != ancienne
+        if change_adresse:
+            # Cette adresse reçoit les codes de mot de passe oublié : une session volée ne doit pas pouvoir
+            # la détourner sans le mot de passe.
+            mdp = donnees.get("mot_de_passe")
+            try:
+                confirme = ctx.connexion.confirmer(mdp if isinstance(mdp, str) else "", ip_client(environ),
+                                                   maintenant)
+            except Bloque as e:
+                raise ErreurApi("bloque", [("Retry-After", str(e.attente_s))]) from None
+            if not confirme:
+                raise ErreurApi("mdp_faux", message="Mot de passe incorrect : il est demandé pour changer "
+                                                    "l'adresse des annonces.")
+        ctx.reglages.modifier(adresse=adresse, plafond=plafond)
+        if change_adresse:
+            _envoyer(ctx, ancienne, messages.alerte_adresse(adresse, maintenant))
         return _ok()
     r = ctx.reglages.lire()
     return reponse_json(200, {"adresse": r["adresse"], "plafond": r["plafond"],

@@ -132,11 +132,15 @@
     <section class="panneau" id="p-reglages" role="tabpanel" aria-labelledby="t-reglages" hidden>
       <div class="reglage">
         <h2>Adresse des annonces</h2>
-        <p>Elle reçoit l'annonce de chaque demande et les codes de mot de passe oublié. Elle n'est jamais affichée au public.</p>
+        <p>Elle reçoit l'annonce de chaque demande et les codes de mot de passe oublié. Elle n'est jamais affichée au public. La changer demande votre mot de passe, et l'ancienne adresse en est prévenue.</p>
         <form class="ligne-form" id="form-adresse">
           <div class="champ">
             <label for="adresse">Adresse e-mail</label>
             <input type="email" id="adresse" required>
+          </div>
+          <div class="champ">
+            <label for="adresse-mdp">Votre mot de passe</label>
+            <input type="password" id="adresse-mdp" autocomplete="current-password" required>
           </div>
           <button type="submit" class="bouton second">Enregistrer l'adresse</button>
         </form>

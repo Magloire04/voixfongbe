@@ -1,3 +1,4 @@
+import json
 import re
 import shutil
 import tempfile
@@ -77,6 +78,15 @@ class TestConnexion(unittest.TestCase):
         self.assertEqual(e.exception.attente_s, 600)
         self.assertIsNotNone(self.c.ouvrir(MDP, "198.51.100.4", T))
         self.assertIsNotNone(self.c.ouvrir(MDP, IP, apres(minutes=10, seconds=1)))
+
+    def test_confirmer_le_mot_de_passe_sans_ouvrir_de_session(self):
+        avant = len(json.loads(self.chemin.read_text(encoding="utf-8"))["sessions"])
+        self.assertTrue(self.c.confirmer(MDP, IP, T))
+        self.assertEqual(len(json.loads(self.chemin.read_text(encoding="utf-8"))["sessions"]), avant)
+        for _ in range(3):
+            self.assertFalse(self.c.confirmer("faux-faux-faux", IP, T))
+        with self.assertRaises(Bloque):  # les erreurs de confirmation comptent comme celles de connexion
+            self.c.ouvrir(MDP, IP, T)
 
     def test_ip_jamais_en_clair(self):
         self.c.ouvrir("faux-faux-faux", IP, T)

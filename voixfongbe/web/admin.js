@@ -450,8 +450,10 @@
 
   $('form-adresse').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const r = await agir(() => api('POST', '/api/admin/reglages', { adresse: $('adresse').value.trim() }), [ev.submitter]);
-    if (r) annoncer('Adresse des annonces enregistrée.', 'ok');
+    const corps = { adresse: $('adresse').value.trim(), mot_de_passe: $('adresse-mdp').value };
+    const r = await agir(() => api('POST', '/api/admin/reglages', corps), [ev.submitter]);
+    $('adresse-mdp').value = '';
+    if (r) annoncer('Adresse des annonces enregistrée. L\'ancienne adresse en a été prévenue.', 'ok');
   });
 
   $('essai').addEventListener('click', async () => {

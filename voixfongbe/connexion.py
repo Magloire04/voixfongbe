@@ -118,6 +118,14 @@ class Connexion:
 
     # Sessions
     def ouvrir(self, mdp: str, ip: str, maintenant: datetime) -> str | None:
+        return self._essayer(mdp, ip, maintenant, session=True)
+
+    def confirmer(self, mdp: str, ip: str, maintenant: datetime) -> bool:
+        """Revérifie le mot de passe avant une action sensible, sans ouvrir de session. Une erreur
+        compte comme une erreur de connexion : trois en 10 minutes bloquent l'adresse."""
+        return self._essayer(mdp, ip, maintenant, session=False) is not None
+
+    def _essayer(self, mdp: str, ip: str, maintenant: datetime, session: bool) -> str | None:
         cle_ip = _sha(f"ip|{ip}")
         neuf = {"n": 0, "depuis": None, "bloque_jusqu": None}
         with verrou(self.chemin):
@@ -142,8 +150,10 @@ class Connexion:
                 ecrire_json(self.chemin, d)
                 return None
             d["echecs"].pop(cle_ip, None)
-            jeton = secrets.token_urlsafe(32)
-            d["sessions"][_sha(jeton)] = _iso(maintenant)
+            jeton = ""
+            if session:
+                jeton = secrets.token_urlsafe(32)
+                d["sessions"][_sha(jeton)] = _iso(maintenant)
             ecrire_json(self.chemin, d)
         return jeton
 

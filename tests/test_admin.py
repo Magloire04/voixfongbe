@@ -332,11 +332,25 @@ class TestAdmin(unittest.TestCase):
         self.assertEqual(self.lire(self.get("/api/admin/reglages")),
                          (200, {"adresse": "eliseeatonde@gmail.com", "plafond": 300, "smtp": {"configure": True},
                                 "voix": {"pret": True, "version": "factice00001"}}))
-        self.assertEqual(self.post("/api/admin/reglages", {"plafond": 500, "adresse": "elisee@exemple.bj"})[0], 200)
+        self.assertEqual(self.post("/api/admin/reglages", {"plafond": 500, "adresse": "elisee@exemple.bj",
+                                                            "mot_de_passe": MDP})[0], 200)
         donnees = self.lire(self.get("/api/admin/reglages"))[1]
         self.assertEqual((donnees["adresse"], donnees["plafond"]), ("elisee@exemple.bj", 500))
-        for corps in ({"plafond": 0}, {"adresse": "pas-une-adresse"}):
+        for corps in ({"plafond": 0}, {"adresse": "pas-une-adresse", "mot_de_passe": MDP}):
             self.assertEqual(self.code(self.post("/api/admin/reglages", corps)), (400, "valeur_invalide"))
+
+    def test_changer_l_adresse_exige_le_mot_de_passe_et_previent_l_ancienne(self):
+        """L'adresse des annonces reçoit les codes de récupération : une session volée ne doit pas la détourner."""
+        for corps in ({"adresse": "pirate@exemple.bj"}, {"adresse": "pirate@exemple.bj", "mot_de_passe": "faux-faux"}):
+            self.assertEqual(self.code(self.post("/api/admin/reglages", corps)), (401, "mdp_faux"))
+        self.assertEqual(self.lire(self.get("/api/admin/reglages"))[1]["adresse"], "eliseeatonde@gmail.com")
+        self.assertEqual(self.post("/api/admin/reglages", {"plafond": 400})[0], 200)  # le plafond seul : sans mot de passe
+        r = self.post("/api/admin/reglages", {"adresse": "nouvelle@exemple.bj", "mot_de_passe": MDP})
+        self.assertEqual(r[0], 200)
+        alerte = self.courriel.envoyes[-1]
+        self.assertEqual(alerte["a"], "eliseeatonde@gmail.com")
+        self.assertIn("nouvelle@exemple.bj", alerte["texte"])
+        self.assertEqual(self.lire(self.get("/api/admin/reglages"))[1]["adresse"], "nouvelle@exemple.bj")
 
     def test_essai_d_envoi(self):
         self.assertEqual(self.lire(self.post("/api/admin/reglages/essai")), (200, {"ok": True, "courriel_envoye": True}))
