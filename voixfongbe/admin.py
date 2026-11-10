@@ -201,6 +201,14 @@ def agir_projet(ctx: Contexte, environ, m):
     if fiche is None:
         raise ErreurApi("projet_inconnu")
     try:
+        return _agir(ctx, projet, action, fiche, donnees, maintenant)
+    except KeyError:
+        # Supprimé entre la lecture et l'action (autre onglet, autre processus).
+        raise ErreurApi("projet_inconnu") from None
+
+
+def _agir(ctx: Contexte, projet: str, action: str, fiche: dict, donnees: dict, maintenant):
+    try:
         if action == "limite":
             ctx.cles.changer_limite(projet, donnees.get("limite"))
             return _ok()
@@ -215,7 +223,10 @@ def agir_projet(ctx: Contexte, environ, m):
     if action == "supprimer":
         if fiche["etat"] != "revoquee":
             raise ErreurApi("etat_incompatible", message="Révoquez le projet avant de le supprimer.")
-        ctx.cles.supprimer(projet)
+        try:
+            ctx.cles.supprimer(projet)
+        except ValueError:  # un nouveau lien ou une clé est arrivé entre-temps
+            raise ErreurApi("etat_incompatible", message="Révoquez le projet avant de le supprimer.") from None
         ctx.demandes.effacer_projet(projet)
         return _ok()
     # nouvelle-cle (projet actif ou révoqué) et nouveau-lien (lien en attente ou expiré)
@@ -225,7 +236,10 @@ def agir_projet(ctx: Contexte, environ, m):
     if not fiche["courriel"]:
         raise ErreurApi("courriel_absent")
     _exiger_envoi(ctx)
-    jeton = ctx.cles.nouveau_lien(projet, maintenant)
+    try:
+        jeton = ctx.cles.nouveau_lien(projet, maintenant)
+    except ValueError:
+        raise ErreurApi("courriel_absent") from None
     envoye = _envoyer(ctx, fiche["courriel"],
                       messages.nouveau_lien(fiche["nom"], _lien(ctx, jeton), fiche["limite"], ctx.config.guide))
     return _ok(courriel_envoye=envoye)

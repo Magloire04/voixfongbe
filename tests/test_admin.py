@@ -295,6 +295,21 @@ class TestAdmin(unittest.TestCase):
         self.assertIsNone(self.demandes.obtenir(ident))
         self.assertEqual(self.cles.lister(), [])
 
+    def test_projet_change_entre_temps(self):
+        """Le projet change entre la lecture et l'action (autre onglet, autre processus) : pas d'erreur 500."""
+        self.cles.creer("demo")
+        self.cles.changer_courriel("demo", "demo@exemple.bj")
+        disparu = KeyError("demo")
+        cas = [("limite", {"limite": 5}, "changer_limite", disparu, (404, "projet_inconnu")),
+               ("nouvelle-cle", {}, "nouveau_lien", disparu, (404, "projet_inconnu")),
+               ("courriel", {"courriel": "a@exemple.bj"}, "changer_courriel", disparu, (404, "projet_inconnu"))]
+        for action, corps, methode, erreur, attendu in cas:
+            with mock.patch.object(Cles, methode, side_effect=erreur):
+                self.assertEqual(self.code(self.post(f"/api/admin/projets/demo/{action}", corps)), attendu, action)
+        self.cles.revoquer("demo")
+        with mock.patch.object(Cles, "supprimer", side_effect=ValueError("révoquer d'abord")):
+            self.assertEqual(self.code(self.post("/api/admin/projets/demo/supprimer")), (409, "etat_incompatible"))
+
     def test_projet_inconnu_404(self):
         self.assertEqual(self.code(self.post("/api/admin/projets/inconnu/revoquer")), (404, "projet_inconnu"))
 
