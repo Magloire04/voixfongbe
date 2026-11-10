@@ -24,6 +24,8 @@ DUREE_CODE = timedelta(minutes=10)
 ESSAIS_CODE = 5
 ECART_CODES = timedelta(minutes=10)
 CODES_PAR_JOUR = 3
+SEUIL_ALERTE = 10  # mots de passe faux en une heure, toutes adresses confondues
+FENETRE_ALERTE = timedelta(hours=1)
 EMPREINTE = re.compile(r"^scrypt:([0-9a-f]{32}):([0-9a-f]{128})$")
 
 
@@ -87,6 +89,8 @@ class Connexion:
         d.setdefault("echecs", {})
         d.setdefault("code", None)
         d.setdefault("envois", {"jour": None, "n": 0, "dernier": None})
+        d.setdefault("echecs_globaux", [])  # heures des mots de passe faux de la dernière heure
+        d.setdefault("alerte_le", None)
         return d
 
     @staticmethod
@@ -104,6 +108,25 @@ class Connexion:
             if (fin and maintenant < _date(fin)) or (debut and maintenant - _date(debut) <= BLOCAGE):
                 vivants[cle] = echec
         return vivants
+
+    @staticmethod
+    def _recents(d: dict, maintenant: datetime) -> list[str]:
+        return [t for t in d["echecs_globaux"] if maintenant - _date(t) <= FENETRE_ALERTE]
+
+    def alerte_due(self, maintenant: datetime) -> int | None:
+        """Le nombre de mots de passe faux de la dernière heure, toutes adresses confondues, s'il atteint
+        le seuil et qu'aucune alerte n'est partie dans l'heure ; sinon None. Le blocage par adresse ne voit
+        pas un attaquant qui change d'adresse ; un blocage commun, lui, l'empêcherait de se connecter
+        aussi : on prévient donc l'administrateur, sans rien bloquer de plus."""
+        with verrou(self.chemin):
+            d = self._lire()
+            recents = self._recents(d, maintenant)
+            deja = d["alerte_le"] and maintenant - _date(d["alerte_le"]) <= FENETRE_ALERTE
+            if len(recents) < SEUIL_ALERTE or deja:
+                return None
+            d["alerte_le"] = _iso(maintenant)
+            ecrire_json(self.chemin, d)
+        return len(recents)
 
     def configure(self) -> bool:
         return bool(self._lire()["mdp"])
@@ -147,6 +170,7 @@ class Connexion:
                 if echec["n"] >= ESSAIS_MDP:
                     echec = {**neuf, "bloque_jusqu": _iso(maintenant + BLOCAGE)}
                 d["echecs"] = {**self._echecs_vivants(d, maintenant), cle_ip: echec}
+                d["echecs_globaux"] = self._recents(d, maintenant)[-999:] + [_iso(maintenant)]
                 ecrire_json(self.chemin, d)
                 return None
             d["echecs"].pop(cle_ip, None)

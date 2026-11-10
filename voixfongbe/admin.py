@@ -51,6 +51,14 @@ def _envoyer(ctx: Contexte, destinataire: str, sujet_texte: tuple[str, str]) -> 
     return ctx.courriel.envoyer(destinataire, *sujet_texte)
 
 
+def _signaler_echecs(ctx: Contexte) -> None:
+    """Après un mot de passe faux : au 10e de l'heure, toutes adresses confondues, un e-mail prévient."""
+    maintenant = ctx.horloge()
+    nombre = ctx.connexion.alerte_due(maintenant)
+    if nombre:
+        _envoyer(ctx, ctx.reglages.lire()["adresse"], messages.alerte_echecs(nombre, maintenant))
+
+
 def _exiger_envoi(ctx: Contexte) -> None:
     """Avant une action dont l'e-mail est le seul moyen de prévenir la personne : sans boîte d'envoi
     configurée, rien ne change (une « Nouvelle clé » couperait sinon la clé en service sans rien envoyer).
@@ -83,6 +91,7 @@ def connexion(ctx: Contexte, environ, m):
     except Bloque as e:
         raise ErreurApi("bloque", [("Retry-After", str(e.attente_s))]) from None
     if jeton is None:
+        _signaler_echecs(ctx)
         raise ErreurApi("mdp_faux")
     return reponse_json(200, {"ok": True},
                         [("Set-Cookie", f"{COOKIE}={jeton}; Path=/; HttpOnly; Secure; SameSite=Strict")])
@@ -289,6 +298,7 @@ def reglages(ctx: Contexte, environ, m):
             except Bloque as e:
                 raise ErreurApi("bloque", [("Retry-After", str(e.attente_s))]) from None
             if not confirme:
+                _signaler_echecs(ctx)
                 raise ErreurApi("mdp_faux", message="Mot de passe incorrect : il est demandé pour changer "
                                                     "l'adresse des annonces.")
         ctx.reglages.modifier(adresse=adresse, plafond=plafond)

@@ -113,6 +113,14 @@ class TestAdmin(unittest.TestCase):
                                          {**ORIGINE, "X-Forwarded-For": "203.0.113.9"})
         self.assertEqual((statut, json.loads(corps)["code"], entetes["Retry-After"]), (429, "bloque", "600"))
 
+    def test_alerte_quand_les_mots_de_passe_faux_s_accumulent(self):
+        for i in range(11):
+            appeler(self.app, "POST", "/api/admin/connexion", {"mot_de_passe": "faux-faux-faux"},
+                    {**ORIGINE, "X-Forwarded-For": f"203.0.113.{i}"})
+        alertes = [e for e in self.courriel.envoyes if "mots de passe faux" in e["texte"]]
+        self.assertEqual(len(alertes), 1)
+        self.assertEqual(alertes[0]["a"], "eliseeatonde@gmail.com")
+
     def test_deconnexion(self):
         _, entetes, _ = self.post("/api/admin/deconnexion")
         self.assertIn("Max-Age=0", entetes["Set-Cookie"])

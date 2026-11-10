@@ -88,6 +88,21 @@ class TestConnexion(unittest.TestCase):
         with self.assertRaises(Bloque):  # les erreurs de confirmation comptent comme celles de connexion
             self.c.ouvrir(MDP, IP, T)
 
+    def test_alerte_apres_dix_echecs_par_heure_toutes_adresses(self):
+        # Un attaquant qui change d'adresse échappe au blocage par adresse : l'administrateur est prévenu.
+        for i in range(9):
+            self.c.ouvrir("faux-faux-faux", f"203.0.113.{i}", T)
+            self.assertIsNone(self.c.alerte_due(T))
+        self.c.ouvrir("faux-faux-faux", "203.0.113.9", T)
+        self.assertEqual(self.c.alerte_due(T), 10)
+        self.c.ouvrir("faux-faux-faux", "203.0.113.10", T)
+        self.assertIsNone(self.c.alerte_due(T))  # une seule alerte par heure
+        plus_tard = apres(hours=1, minutes=1)
+        self.assertIsNone(self.c.alerte_due(plus_tard))  # les échecs de l'heure passée ne comptent plus
+        for i in range(10):
+            self.c.confirmer("faux-faux-faux", f"198.51.100.{i}", plus_tard)
+        self.assertEqual(self.c.alerte_due(plus_tard), 10)
+
     def test_ip_jamais_en_clair(self):
         self.c.ouvrir("faux-faux-faux", IP, T)
         self.assertNotIn(IP, self.chemin.read_text(encoding="utf-8"))
