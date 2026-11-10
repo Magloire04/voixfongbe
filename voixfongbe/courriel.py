@@ -2,6 +2,10 @@
 
 Les identifiants sont saisis en SSH (scripts/admin.py smtp) dans smtp.json, en droits 600, et ne
 sont jamais affichés. Un envoi qui échoue rend False : la décision qui l'a demandé reste valable.
+
+L'envoi se fait pendant la requête, sans file d'attente : une boîte lente fait attendre la page (20 s
+au plus par étape réseau) et occupe un processus pendant ce temps. Au volume prévu (quelques demandes
+par jour), c'est plus sûr qu'un envoi en arrière-plan qu'un redémarrage de Passenger pourrait perdre.
 """
 
 import smtplib

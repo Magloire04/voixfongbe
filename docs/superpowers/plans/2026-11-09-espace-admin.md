@@ -16,7 +16,7 @@
 - Code compatible Python 3.13 et 3.14. Identifiants en français. Textes visibles en français, sans détail technique.
 - Stockage : JSON écrits par `ecrire_json` (atomique, droits 600). Toute lecture suivie d'une écriture se fait sous `verrou()`, car plusieurs processus Passenger tournent en même temps.
 - Aucun dossier `public/` : pages, feuilles de style, scripts et polices passent par des routes de l'application.
-- Rien de secret en clair sur le disque ni dans un e-mail : ni clé d'API, ni jeton de lien, ni jeton de session, ni code de mot de passe oublié, ni mot de passe. Seules les empreintes sont gardées, comparées par `hmac.compare_digest`. L'adresse IP n'est gardée que sous forme d'empreinte.
+- Rien de secret en clair sur le disque : ni clé d'API, ni jeton de lien, ni jeton de session, ni code de mot de passe oublié, ni mot de passe. Seules les empreintes sont gardées, comparées par `hmac.compare_digest`. L'adresse IP n'est gardée que sous forme d'empreinte. Dans un e-mail : jamais de clé d'API ni de mot de passe ; le lien d'accès et le code de mot de passe oublié y figurent, comme le veut la conception (§ 6.2 et § 6.4), et ne sont jamais gardés en clair.
 - Valeurs de la conception :
   - demande : description de 20 à 1 000 caractères ; 3 demandes par jour et par IP (dernière entrée de `X-Forwarded-For`) ; 50 demandes en attente au plus ; refusées effacées après 90 jours ;
   - accès : jeton de 32 octets valable 7 jours ; limite par projet de 1 à 1 000 000, 100 par défaut ; plafond commun de 300 par défaut ;
