@@ -157,11 +157,14 @@ def creer_application(config: Config, moteur=None, horloge=None, courriel=None):
 
     def route_synthese(environ, m, suivi):
         suivi["journal"] = True
+        if reglages.lire()["api_coupee"]:  # coupée depuis l'espace admin : rien n'est compté
+            raise ErreurApi("api_coupee")
         return synthese(environ, suivi)
 
     def route_etat(environ, m, suivi):
+        ouvert = not reglages.lire()["api_coupee"]
         return reponse_json(200, {"service": "voix fon", "version": moteur.version, "modele": "facebook/mms-tts-fon",
-                                  "licence": "CC BY-NC 4.0", "pret": moteur.pret()})
+                                  "licence": "CC BY-NC 4.0", "pret": ouvert and moteur.pret(), "ouvert": ouvert})
 
     def route_robots(environ, m, suivi):
         return 200, [("Content-Type", "text/plain; charset=utf-8")], b"User-agent: *\nDisallow: /\n"

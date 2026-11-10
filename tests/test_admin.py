@@ -336,10 +336,25 @@ class TestAdmin(unittest.TestCase):
             self.assertEqual(self.code(self.get("/api/admin/appels", requete)), (400, "valeur_invalide"), requete)
 
     # Réglages
+    def test_couper_et_retablir_l_api_en_un_clic(self):
+        cle = self.cles.creer("demo")
+        auth = {"Authorization": f"Bearer {cle}"}
+        self.assertEqual(self.post("/api/admin/reglages", {"api_coupee": True})[0], 200)  # sans mot de passe
+        self.assertTrue(self.lire(self.get("/api/admin/reglages"))[1]["api_coupee"])
+        self.assertEqual(self.code(appeler(self.app, "POST", "/v1/synthese", {"texte": "mi"}, auth)),
+                         (503, "api_coupee"))
+        self.assertEqual(self.post("/api/admin/reglages", {"api_coupee": False})[0], 200)
+        self.assertEqual(appeler(self.app, "POST", "/v1/synthese", {"texte": "mi"}, auth)[0], 200)
+        self.assertEqual(self.code(self.post("/api/admin/reglages", {"api_coupee": "oui"})), (400, "valeur_invalide"))
+
+    def test_couper_l_api_exige_une_session(self):
+        r = appeler(self.app, "POST", "/api/admin/reglages", {"api_coupee": True}, ORIGINE)
+        self.assertEqual(self.code(r), (401, "non_connecte"))
+
     def test_reglages_lus_et_modifies(self):
         self.assertEqual(self.lire(self.get("/api/admin/reglages")),
-                         (200, {"adresse": "eliseeatonde@gmail.com", "plafond": 300, "smtp": {"configure": True},
-                                "voix": {"pret": True, "version": "factice00001"}}))
+                         (200, {"adresse": "eliseeatonde@gmail.com", "plafond": 300, "api_coupee": False,
+                                "smtp": {"configure": True}, "voix": {"pret": True, "version": "factice00001"}}))
         self.assertEqual(self.post("/api/admin/reglages", {"plafond": 500, "adresse": "elisee@exemple.bj",
                                                             "mot_de_passe": MDP})[0], 200)
         donnees = self.lire(self.get("/api/admin/reglages"))[1]

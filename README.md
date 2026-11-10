@@ -174,6 +174,7 @@ Toute erreur rend du JSON : `{"erreur": "<explication en français>", "code": "<
 | 429 | `quota_jour` | Quota du jour atteint (le vôtre, ou celui de tout le service). L'en-tête `Retry-After` donne le nombre de secondes jusqu'à minuit, heure de Porto-Novo. |
 | 503 | `voix_occupee` | La voix prépare déjà une autre phrase : réessayer après le nombre de secondes indiqué par `Retry-After`. |
 | 503 | `modele_indisponible` / `delai_depasse` | Voix momentanément indisponible ou trop lente : réessayer un peu plus tard, avec un texte plus court. Si la phrase était trop longue, elle sera souvent prête au nouvel essai (`X-Voix-Cache: oui`). |
+| 503 | `api_coupee` | Le service est momentanément coupé par son administrateur : réessayer plus tard. `/v1/etat` indique alors `"ouvert": false`. |
 | 500 | `erreur_interne` | Réessayer ; si cela dure, écrire à technum.services@bytechnum.com. |
 
 Comptent dans le quota : les demandes qui rendent un son, et celles qui finissent en `delai_depasse` (la voix a travaillé, et la phrase sera souvent prête au nouvel essai). Les autres erreurs ne vous coûtent rien.
@@ -224,7 +225,9 @@ La voix est le modèle [facebook/mms-tts-fon](https://huggingface.co/facebook/mm
 `GET https://voix.bytechnum.com/v1/etat` (sans clé) indique si la voix est prête :
 
 ```json
-{"service": "voix fon", "version": "9c0f27e0a199", "modele": "facebook/mms-tts-fon", "licence": "CC BY-NC 4.0", "pret": true}
+{"service": "voix fon", "version": "9c0f27e0a199", "modele": "facebook/mms-tts-fon", "licence": "CC BY-NC 4.0", "pret": true, "ouvert": true}
 ```
+
+`"ouvert": false` : le service est momentanément coupé par son administrateur ; `pret` vaut alors `false` et chaque demande reçoit `api_coupee`.
 
 Contact : technum.services@bytechnum.com.

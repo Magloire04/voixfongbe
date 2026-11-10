@@ -19,6 +19,7 @@ MESSAGES = {
     "delai_depasse": (503, "La voix a mis trop de temps à répondre. Réessayez avec un texte plus court."),
     "voix_occupee": (503, "La voix prépare déjà une autre phrase. Réessayez dans quelques secondes."),
     "erreur_interne": (500, "Erreur interne du service."),
+    "api_coupee": (503, "Le service de voix est momentanément coupé. Réessayez plus tard."),
     # Pages, demandes d'accès et espace admin
     "origine": (403, "Demande refusée : elle doit venir d'une page de voix.bytechnum.com."),
     "type_contenu": (415, "Le corps doit être envoyé en JSON (Content-Type: application/json)."),

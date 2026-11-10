@@ -196,7 +196,26 @@ class TestApp(unittest.TestCase):
         self.assertEqual(statut, 200)
         self.assertEqual(json.loads(corps), {"service": "voix fon", "version": "factice00001",
                                              "modele": "facebook/mms-tts-fon", "licence": "CC BY-NC 4.0",
-                                             "pret": True})
+                                             "pret": True, "ouvert": True})
+
+    def couper(self, coupee=True):
+        Reglages(self.config.dossier_stockage / "reglages.json", "eliseeatonde@gmail.com", 300).modifier(
+            api_coupee=coupee)
+
+    def test_api_coupee_503_sans_compter_le_quota(self):
+        app = self.app(par_cle=1)
+        self.couper()
+        statut, entetes, corps = self.synthese(app, {"texte": "mi"})
+        self.assertEqual((statut, json.loads(corps)["code"]), (503, "api_coupee"))
+        self.assertNotIn("Retry-After", entetes)
+        etat = json.loads(appeler(app, "GET", "/v1/etat")[2])
+        self.assertEqual((etat["pret"], etat["ouvert"]), (False, False))
+        self.couper(False)
+        self.assertEqual(self.synthese(app, {"texte": "mi"})[0], 200)  # la demande refusée n'a rien coûté
+
+    def test_api_coupee_meme_sans_cle(self):
+        self.couper()
+        self.assertEqual(self.code(self.synthese(self.app(), {"texte": "mi"}, {})), (503, "api_coupee"))
 
     def test_etat_quand_modele_absent(self):
         corps = json.loads(appeler(self.app(MoteurFactice(pret=False)), "GET", "/v1/etat")[2])

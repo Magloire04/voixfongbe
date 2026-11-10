@@ -285,6 +285,9 @@ def reglages(ctx: Contexte, environ, m):
             plafond = donnees.get("plafond")
             if plafond is not None:
                 valider_limite(plafond)
+            api_coupee = donnees.get("api_coupee")  # l'interrupteur de l'API : un clic, sans mot de passe
+            if api_coupee is not None and not isinstance(api_coupee, bool):
+                raise ValueError("api_coupee doit valoir true ou false")
         except ValueError as e:
             raise ErreurApi("valeur_invalide", message=f"{str(e)[:1].upper()}{str(e)[1:]}.") from None
         change_adresse = adresse is not None and adresse != ancienne
@@ -301,12 +304,12 @@ def reglages(ctx: Contexte, environ, m):
                 _signaler_echecs(ctx)
                 raise ErreurApi("mdp_faux", message="Mot de passe incorrect : il est demandé pour changer "
                                                     "l'adresse des annonces.")
-        ctx.reglages.modifier(adresse=adresse, plafond=plafond)
+        ctx.reglages.modifier(adresse=adresse, plafond=plafond, api_coupee=api_coupee)
         if change_adresse:
             _envoyer(ctx, ancienne, messages.alerte_adresse(adresse, maintenant))
         return _ok()
     r = ctx.reglages.lire()
-    return reponse_json(200, {"adresse": r["adresse"], "plafond": r["plafond"],
+    return reponse_json(200, {"adresse": r["adresse"], "plafond": r["plafond"], "api_coupee": r["api_coupee"],
                               "smtp": {"configure": ctx.courriel.configure()},
                               "voix": {"pret": ctx.moteur.pret(), "version": ctx.moteur.version}})
 

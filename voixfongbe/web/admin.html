@@ -68,11 +68,14 @@
     </nav>
     <div class="pied-barre">
       <span class="etat-voix" id="etat-voix"></span>
+      <span class="etat-voix" id="etat-api"></span>
+      <button type="button" class="bouton danger petit" id="bascule-api" aria-describedby="etat-api">Couper l'API</button>
       <button type="button" class="bouton second petit" id="deconnexion" hidden>Se déconnecter</button>
     </div>
   </aside>
 
   <main class="principal">
+    <p class="alerte-coupure" id="alerte-api" hidden>L'API est coupée : chaque projet reçoit une erreur 503 jusqu'à ce que vous la rétablissiez avec le bouton « Rétablir l'API ».</p>
     <section class="panneau" id="p-demandes" role="tabpanel" aria-labelledby="t-demandes">
       <header class="tete-panneau">
         <h1>Demandes d'accès</h1>
