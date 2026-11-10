@@ -9,23 +9,19 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="page-admin">
-<header class="bande">
-  <span class="logo">Voix fon</span>
-  <span class="sous">Administration</span>
-  <span class="a-droite">
-    <span class="etat-voix" id="etat-voix"></span>
-    <button type="button" class="bouton second petit" id="deconnexion" hidden>Se déconnecter</button>
-  </span>
-</header>
-<main>
-  <p class="annonce" id="annonce" role="status" aria-live="polite"></p>
+<p class="annonce" id="annonce" role="status" aria-live="polite"></p>
 
-  <section class="feuille" id="non-configure" hidden>
+<div class="ecran-seul" id="non-configure" hidden>
+  <section class="feuille">
+    <span class="marque"><svg class="marque-icone" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8"/><g><rect x="7" y="12" width="3" height="8" rx="1.5"/><rect x="12.5" y="7" width="3" height="18" rx="1.5"/><rect x="18" y="10" width="3" height="12" rx="1.5"/><rect x="23.5" y="13.5" width="3" height="5" rx="1.5"/></g></svg><span class="marque-texte"><span class="marque-nom">Voix fon</span><span class="marque-sous">Administration</span></span></span>
     <h1>Espace pas encore prêt</h1>
     <p>Le mot de passe de l'espace admin n'est pas encore défini. Il se définit une seule fois en SSH, avec <code>scripts/admin.py mot-de-passe</code> (voir EXPLOITATION.md).</p>
   </section>
+</div>
 
-  <section class="feuille" id="ecran-connexion" hidden>
+<div class="ecran-seul" id="ecran-connexion" hidden>
+  <section class="feuille">
+    <span class="marque"><svg class="marque-icone" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8"/><g><rect x="7" y="12" width="3" height="8" rx="1.5"/><rect x="12.5" y="7" width="3" height="18" rx="1.5"/><rect x="18" y="10" width="3" height="12" rx="1.5"/><rect x="23.5" y="13.5" width="3" height="5" rx="1.5"/></g></svg><span class="marque-texte"><span class="marque-nom">Voix fon</span><span class="marque-sous">Administration</span></span></span>
     <h1>Connexion</h1>
     <form id="form-connexion">
       <div class="champ">
@@ -35,12 +31,12 @@
       <button type="submit" class="bouton large">Se connecter</button>
       <p class="message erreur" id="msg-connexion" role="alert"></p>
     </form>
-    <p><button type="button" class="lien" id="vers-oubli">Mot de passe oublié ?</button></p>
+    <p class="lien-oubli"><button type="button" class="lien" id="vers-oubli">Mot de passe oublié ?</button></p>
     <div id="oubli" hidden>
       <h2>Mot de passe oublié</h2>
       <p>Un code à 8 chiffres part vers l'adresse de l'administrateur. Il reste valable 10 minutes.</p>
-      <button type="button" class="bouton second" id="envoyer-code">Envoyer un code</button>
-      <form id="form-code" hidden>
+      <button type="button" class="bouton second large" id="envoyer-code">Envoyer un code</button>
+      <form id="form-code" class="form-code" hidden>
         <div class="champ">
           <label for="code">Code reçu</label>
           <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required>
@@ -59,16 +55,29 @@
       <p class="message" id="msg-oubli" role="status"></p>
     </div>
   </section>
+</div>
 
-  <section id="espace" hidden>
+<div class="espace" id="espace" hidden>
+  <aside class="barre">
+    <span class="marque"><svg class="marque-icone" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8"/><g><rect x="7" y="12" width="3" height="8" rx="1.5"/><rect x="12.5" y="7" width="3" height="18" rx="1.5"/><rect x="18" y="10" width="3" height="12" rx="1.5"/><rect x="23.5" y="13.5" width="3" height="5" rx="1.5"/></g></svg><span class="marque-texte"><span class="marque-nom">Voix fon</span><span class="marque-sous">Administration</span></span></span>
     <nav class="onglets" role="tablist" aria-label="Rubriques">
-      <button type="button" role="tab" id="t-demandes" aria-controls="p-demandes" aria-selected="true">Demandes<span class="compte" id="nb-attente"></span></button>
-      <button type="button" role="tab" id="t-projets" aria-controls="p-projets" aria-selected="false" tabindex="-1">Projets et limites</button>
-      <button type="button" role="tab" id="t-appels" aria-controls="p-appels" aria-selected="false" tabindex="-1">Appels</button>
-      <button type="button" role="tab" id="t-reglages" aria-controls="p-reglages" aria-selected="false" tabindex="-1">Réglages</button>
+      <button type="button" role="tab" id="t-demandes" aria-controls="p-demandes" aria-selected="true"><span>Demandes</span><span class="compte" id="nb-attente"></span></button>
+      <button type="button" role="tab" id="t-projets" aria-controls="p-projets" aria-selected="false" tabindex="-1"><span>Projets et limites</span></button>
+      <button type="button" role="tab" id="t-appels" aria-controls="p-appels" aria-selected="false" tabindex="-1"><span>Appels</span></button>
+      <button type="button" role="tab" id="t-reglages" aria-controls="p-reglages" aria-selected="false" tabindex="-1"><span>Réglages</span></button>
     </nav>
+    <div class="pied-barre">
+      <span class="etat-voix" id="etat-voix"></span>
+      <button type="button" class="bouton second petit" id="deconnexion" hidden>Se déconnecter</button>
+    </div>
+  </aside>
 
+  <main class="principal">
     <section class="panneau" id="p-demandes" role="tabpanel" aria-labelledby="t-demandes">
+      <header class="tete-panneau">
+        <h1>Demandes d'accès</h1>
+        <p>Les demandes reçues par le formulaire public. « Approuver » crée le projet et envoie un lien qui affiche la clé une seule fois.</p>
+      </header>
       <h2>En attente</h2>
       <div id="liste-attente"></div>
       <h2>Décisions</h2>
@@ -81,6 +90,10 @@
     </section>
 
     <section class="panneau" id="p-projets" role="tabpanel" aria-labelledby="t-projets" hidden>
+      <header class="tete-panneau">
+        <h1>Projets et limites</h1>
+        <p>Chaque projet a sa limite de demandes par jour ; le plafond commun s'applique à l'ensemble des projets.</p>
+      </header>
       <div class="chiffres">
         <div><b id="total-jour">0</b>demandes aujourd'hui, tous projets</div>
         <div><b id="plafond-affiche">0</b>plafond du jour, tous projets</div>
@@ -101,6 +114,10 @@
     </section>
 
     <section class="panneau" id="p-appels" role="tabpanel" aria-labelledby="t-appels" hidden>
+      <header class="tete-panneau">
+        <h1>Appels</h1>
+        <p>Le journal des 90 derniers jours, sans jamais le texte demandé.</p>
+      </header>
       <div class="chiffres">
         <div><b id="r-demandes">0</b>demandes ce jour-là</div>
         <div><b id="r-erreurs">0</b>erreurs</div>
@@ -130,6 +147,10 @@
     </section>
 
     <section class="panneau" id="p-reglages" role="tabpanel" aria-labelledby="t-reglages" hidden>
+      <header class="tete-panneau">
+        <h1>Réglages</h1>
+        <p>L'adresse qui reçoit les annonces et les codes, l'envoi des e-mails et l'état de la voix.</p>
+      </header>
       <div class="reglage">
         <h2>Adresse des annonces</h2>
         <p>Elle reçoit l'annonce de chaque demande et les codes de mot de passe oublié. Elle n'est jamais affichée au public. La changer demande votre mot de passe, et l'ancienne adresse en est prévenue.</p>
@@ -155,8 +176,8 @@
         <p id="etat-voix-detail"></p>
       </div>
     </section>
-  </section>
-</main>
+  </main>
+</div>
 <script src="/static/admin.js"></script>
 </body>
 </html>
