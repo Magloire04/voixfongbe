@@ -447,8 +447,33 @@
       ? 'La boîte d\'envoi est configurée. L\'essai part vers l\'adresse des annonces.'
       : 'La boîte d\'envoi n\'est pas configurée : ses identifiants se saisissent en SSH, avec scripts/admin.py smtp.';
     $('essai').disabled = !d.smtp.configure;
+    afficherApi(d.api_coupee);
   }
   CHARGEURS.reglages = chargerReglages;
+
+  // Interrupteur de l'API : un clic coupe toutes les synthèses (503), un autre les rétablit.
+  let apiCoupee = false;
+
+  function afficherApi(coupee) {
+    apiCoupee = Boolean(coupee);
+    const etat = $('etat-api');
+    etat.textContent = apiCoupee ? 'API coupée' : 'API ouverte';
+    etat.className = 'etat-voix ' + (apiCoupee ? 'non' : 'ok');
+    const bouton = $('bascule-api');
+    bouton.textContent = apiCoupee ? 'Rétablir l\'API' : 'Couper l\'API';
+    bouton.className = 'bouton petit ' + (apiCoupee ? '' : 'danger');
+    bouton.setAttribute('aria-pressed', String(apiCoupee));
+    $('alerte-api').hidden = !apiCoupee;
+  }
+
+  $('bascule-api').addEventListener('click', async () => {
+    const coupee = !apiCoupee;
+    const r = await agir(() => api('POST', '/api/admin/reglages', { api_coupee: coupee }), [$('bascule-api')]);
+    if (!r) return;
+    afficherApi(coupee);
+    if (coupee) annoncer('API coupée : les projets reçoivent une erreur 503 jusqu\'au rétablissement.', 'erreur');
+    else annoncer('API rétablie : les projets peuvent de nouveau appeler la voix.', 'ok');
+  });
 
   $('form-adresse').addEventListener('submit', async (ev) => {
     ev.preventDefault();

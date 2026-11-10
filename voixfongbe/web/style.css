@@ -262,6 +262,11 @@ button { font: inherit; cursor: pointer; }
 .etat-voix.non { color: var(--rouge); }
 .etat-voix.non::before { background: var(--rouge); box-shadow: 0 0 0 3px var(--rouge-fond); }
 .pied-barre .bouton { width: 100%; }
+.alerte-coupure {
+  max-width: 1120px; margin: 0 0 24px; padding: 13px 16px;
+  background: var(--rouge-fond); color: var(--rouge); border-left: 4px solid var(--rouge); border-radius: 4px 10px 10px 4px;
+  font-weight: 600; font-size: 0.875rem;
+}
 
 .principal { padding: 36px 44px 96px; min-width: 0; }
 .panneau { max-width: 1120px; }
