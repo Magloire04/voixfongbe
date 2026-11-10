@@ -113,6 +113,14 @@ class TestAdmin(unittest.TestCase):
                                          {**ORIGINE, "X-Forwarded-For": "203.0.113.9"})
         self.assertEqual((statut, json.loads(corps)["code"], entetes["Retry-After"]), (429, "bloque", "600"))
 
+    def test_alerte_quand_les_mots_de_passe_faux_s_accumulent(self):
+        for i in range(11):
+            appeler(self.app, "POST", "/api/admin/connexion", {"mot_de_passe": "faux-faux-faux"},
+                    {**ORIGINE, "X-Forwarded-For": f"203.0.113.{i}"})
+        alertes = [e for e in self.courriel.envoyes if "mots de passe faux" in e["texte"]]
+        self.assertEqual(len(alertes), 1)
+        self.assertEqual(alertes[0]["a"], "eliseeatonde@gmail.com")
+
     def test_deconnexion(self):
         _, entetes, _ = self.post("/api/admin/deconnexion")
         self.assertIn("Max-Age=0", entetes["Set-Cookie"])
@@ -199,6 +207,22 @@ class TestAdmin(unittest.TestCase):
         self.assertEqual(self.cles.lister(), [])
         self.assertEqual([e for e in self.courriel.envoyes if e["a"] == "koffi@exemple.bj"], [])
 
+    def test_approbations_simultanees_meme_nom(self):
+        """Deux onglets approuvent avec le même nom proposé : le second apprend que la demande est traitée."""
+        ident = self.deposer_demande()
+        original = Cles.preparer
+
+        def autre_onglet_d_abord(cles, projet, **options):
+            if not self.cles.lister(T):
+                original(cles, projet, **options)
+                Demandes(self.config.dossier_stockage / "demandes.json").marquer_approuvee(ident, projet, T)
+            return original(cles, projet, **options)  # le nom est désormais pris : ValueError
+
+        with mock.patch.object(Cles, "preparer", autre_onglet_d_abord):
+            r = self.post(f"/api/admin/demandes/{ident}/approuver", {"projet": "alpha"})
+        self.assertEqual(self.code(r), (409, "deja_decidee"))
+        self.assertEqual([p["projet"] for p in self.cles.lister(T)], ["alpha"])
+
     def test_demande_inconnue_404(self):
         self.assertEqual(self.code(self.post(f"/api/admin/demandes/{'0' * 16}/refuser")), (404, "demande_inconnue"))
 
@@ -279,6 +303,21 @@ class TestAdmin(unittest.TestCase):
         self.assertIsNone(self.demandes.obtenir(ident))
         self.assertEqual(self.cles.lister(), [])
 
+    def test_projet_change_entre_temps(self):
+        """Le projet change entre la lecture et l'action (autre onglet, autre processus) : pas d'erreur 500."""
+        self.cles.creer("demo")
+        self.cles.changer_courriel("demo", "demo@exemple.bj")
+        disparu = KeyError("demo")
+        cas = [("limite", {"limite": 5}, "changer_limite", disparu, (404, "projet_inconnu")),
+               ("nouvelle-cle", {}, "nouveau_lien", disparu, (404, "projet_inconnu")),
+               ("courriel", {"courriel": "a@exemple.bj"}, "changer_courriel", disparu, (404, "projet_inconnu"))]
+        for action, corps, methode, erreur, attendu in cas:
+            with mock.patch.object(Cles, methode, side_effect=erreur):
+                self.assertEqual(self.code(self.post(f"/api/admin/projets/demo/{action}", corps)), attendu, action)
+        self.cles.revoquer("demo")
+        with mock.patch.object(Cles, "supprimer", side_effect=ValueError("révoquer d'abord")):
+            self.assertEqual(self.code(self.post("/api/admin/projets/demo/supprimer")), (409, "etat_incompatible"))
+
     def test_projet_inconnu_404(self):
         self.assertEqual(self.code(self.post("/api/admin/projets/inconnu/revoquer")), (404, "projet_inconnu"))
 
@@ -301,11 +340,25 @@ class TestAdmin(unittest.TestCase):
         self.assertEqual(self.lire(self.get("/api/admin/reglages")),
                          (200, {"adresse": "eliseeatonde@gmail.com", "plafond": 300, "smtp": {"configure": True},
                                 "voix": {"pret": True, "version": "factice00001"}}))
-        self.assertEqual(self.post("/api/admin/reglages", {"plafond": 500, "adresse": "elisee@exemple.bj"})[0], 200)
+        self.assertEqual(self.post("/api/admin/reglages", {"plafond": 500, "adresse": "elisee@exemple.bj",
+                                                            "mot_de_passe": MDP})[0], 200)
         donnees = self.lire(self.get("/api/admin/reglages"))[1]
         self.assertEqual((donnees["adresse"], donnees["plafond"]), ("elisee@exemple.bj", 500))
-        for corps in ({"plafond": 0}, {"adresse": "pas-une-adresse"}):
+        for corps in ({"plafond": 0}, {"adresse": "pas-une-adresse", "mot_de_passe": MDP}):
             self.assertEqual(self.code(self.post("/api/admin/reglages", corps)), (400, "valeur_invalide"))
+
+    def test_changer_l_adresse_exige_le_mot_de_passe_et_previent_l_ancienne(self):
+        """L'adresse des annonces reçoit les codes de récupération : une session volée ne doit pas la détourner."""
+        for corps in ({"adresse": "pirate@exemple.bj"}, {"adresse": "pirate@exemple.bj", "mot_de_passe": "faux-faux"}):
+            self.assertEqual(self.code(self.post("/api/admin/reglages", corps)), (401, "mdp_faux"))
+        self.assertEqual(self.lire(self.get("/api/admin/reglages"))[1]["adresse"], "eliseeatonde@gmail.com")
+        self.assertEqual(self.post("/api/admin/reglages", {"plafond": 400})[0], 200)  # le plafond seul : sans mot de passe
+        r = self.post("/api/admin/reglages", {"adresse": "nouvelle@exemple.bj", "mot_de_passe": MDP})
+        self.assertEqual(r[0], 200)
+        alerte = self.courriel.envoyes[-1]
+        self.assertEqual(alerte["a"], "eliseeatonde@gmail.com")
+        self.assertIn("nouvelle@exemple.bj", alerte["texte"])
+        self.assertEqual(self.lire(self.get("/api/admin/reglages"))[1]["adresse"], "nouvelle@exemple.bj")
 
     def test_essai_d_envoi(self):
         self.assertEqual(self.lire(self.post("/api/admin/reglages/essai")), (200, {"ok": True, "courriel_envoye": True}))
@@ -336,6 +389,11 @@ class TestAdmin(unittest.TestCase):
         appeler(self.app, "POST", "/api/admin/oubli", {}, ORIGINE)
         statut, entetes, corps = appeler(self.app, "POST", "/api/admin/oubli", {}, ORIGINE)
         self.assertEqual((statut, json.loads(corps)["code"], entetes["Retry-After"]), (429, "trop_de_codes", "600"))
+
+    def test_une_autre_adresse_obtient_son_code(self):
+        appeler(self.app, "POST", "/api/admin/oubli", {}, {**ORIGINE, "X-Forwarded-For": "203.0.113.66"})
+        r = appeler(self.app, "POST", "/api/admin/oubli", {}, {**ORIGINE, "X-Forwarded-For": "198.51.100.4"})
+        self.assertEqual(r[0], 200)
 
     def test_oubli_sans_envoi_configure(self):
         self.courriel.configure_ = False

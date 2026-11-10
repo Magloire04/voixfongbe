@@ -81,6 +81,23 @@ def alerte_mdp(quand: datetime) -> tuple[str, str]:
             "tout de suite un nouveau mot de passe en SSH : scripts/admin.py mot-de-passe.\n")
 
 
+def alerte_adresse(nouvelle: str, quand: datetime) -> tuple[str, str]:
+    """Envoyée à l'ancienne adresse : c'est elle qui recevait les codes de mot de passe oublié."""
+    return ("Adresse de l'espace admin changée",
+            f"L'adresse qui reçoit les annonces et les codes de l'espace admin de la voix fon a été remplacée "
+            f"par {nouvelle}, le {_date(quand)} (heure de Porto-Novo). Ce message est envoyé à l'ancienne "
+            "adresse.\n\nSi ce n'est pas vous, définissez tout de suite un nouveau mot de passe en SSH "
+            "(scripts/admin.py mot-de-passe), puis remettez votre adresse dans l'onglet Réglages.\n")
+
+
+def alerte_echecs(nombre: int, quand: datetime) -> tuple[str, str]:
+    return ("Essais de connexion à l'espace admin",
+            f"{nombre} mots de passe faux ont été saisis sur l'espace admin de la voix fon dans l'heure "
+            f"précédant le {_date(quand)} (heure de Porto-Novo), toutes adresses confondues.\n\nSi ce n'est pas "
+            "vous, rien n'est à faire tant que votre mot de passe est long et unique. En cas de doute, "
+            "changez-le en SSH : scripts/admin.py mot-de-passe.\n")
+
+
 def essai() -> tuple[str, str]:
     return ("Essai d'envoi de la voix fon",
             "Ce message confirme que l'espace admin de la voix fon peut envoyer des e-mails.\n")

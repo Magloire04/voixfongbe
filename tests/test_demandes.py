@@ -61,6 +61,13 @@ class TestValider(unittest.TestCase):
         deux_lignes = valider(donnees(description="Première ligne du projet.\r\nSeconde ligne\x00 ici."))
         self.assertEqual(deux_lignes["description"], "Première ligne du projet.\nSeconde ligne ici.")
 
+    def test_mot_encode_refuse(self):
+        # Un « encoded word » (RFC 2047) peut cacher un retour à la ligne qui ne se révèle qu'au décodage :
+        # sur un Python non corrigé (CVE-2024-6923), il ajouterait un en-tête à l'e-mail d'annonce.
+        self.assertEqual(self.champ(nom="=?utf-8?q?Koffi=0D=0ABcc:_x@y.bj?="), "nom")
+        self.assertEqual(self.champ(organisation="=?utf-8?b?QUJD?="), "organisation")
+        self.assertEqual(valider(donnees(nom="Koffi = A ? B"))["nom"], "Koffi = A ? B")
+
     def test_balises_gardees_en_texte(self):
         self.assertEqual(valider(donnees(nom="<img src=x onerror=alert(1)>"))["nom"], "<img src=x onerror=alert(1)>")
 

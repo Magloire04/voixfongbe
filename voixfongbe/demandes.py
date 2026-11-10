@@ -48,7 +48,9 @@ def _texte(donnees: dict, champ: str, libelle: str, une_ligne: bool) -> str:
     if not isinstance(valeur, str):
         raise ChampInvalide(champ, f"{libelle} : ce champ est obligatoire.")
     if une_ligne:
-        if any(_controle(c) for c in valeur):
+        # « =? » ouvre un mot encodé d'en-tête (RFC 2047), qui peut cacher un retour à la ligne : le nom
+        # finit dans le sujet de l'e-mail d'annonce.
+        if any(_controle(c) for c in valeur) or "=?" in valeur:
             raise ChampInvalide(champ, f"{libelle} : une seule ligne, sans caractère spécial.")
     else:
         valeur = valeur.replace("\r\n", "\n").replace("\r", "\n")

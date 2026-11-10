@@ -13,7 +13,7 @@ from urllib.parse import parse_qs
 from . import messages
 from .cles import LIMITE_PAR_DEFAUT, NOM_PROJET
 from .connexion import Bloque, PasConfigure, TropDeCodes
-from .formats import valider_limite
+from .formats import valider_courriel, valider_limite
 from .quotas import FUSEAU
 from .reponses import ErreurApi, reponse_json
 from .web import Contexte, controler_post, ip_client, lire_cookie, lire_corps_json, page
@@ -51,6 +51,14 @@ def _envoyer(ctx: Contexte, destinataire: str, sujet_texte: tuple[str, str]) -> 
     return ctx.courriel.envoyer(destinataire, *sujet_texte)
 
 
+def _signaler_echecs(ctx: Contexte) -> None:
+    """Après un mot de passe faux : au 10e de l'heure, toutes adresses confondues, un e-mail prévient."""
+    maintenant = ctx.horloge()
+    nombre = ctx.connexion.alerte_due(maintenant)
+    if nombre:
+        _envoyer(ctx, ctx.reglages.lire()["adresse"], messages.alerte_echecs(nombre, maintenant))
+
+
 def _exiger_envoi(ctx: Contexte) -> None:
     """Avant une action dont l'e-mail est le seul moyen de prévenir la personne : sans boîte d'envoi
     configurée, rien ne change (une « Nouvelle clé » couperait sinon la clé en service sans rien envoyer).
@@ -83,6 +91,7 @@ def connexion(ctx: Contexte, environ, m):
     except Bloque as e:
         raise ErreurApi("bloque", [("Retry-After", str(e.attente_s))]) from None
     if jeton is None:
+        _signaler_echecs(ctx)
         raise ErreurApi("mdp_faux")
     return reponse_json(200, {"ok": True},
                         [("Set-Cookie", f"{COOKIE}={jeton}; Path=/; HttpOnly; Secure; SameSite=Strict")])
@@ -103,7 +112,7 @@ def oubli(ctx: Contexte, environ, m):
     if not ctx.courriel.configure():
         raise ErreurApi("smtp_absent")
     try:
-        code = ctx.connexion.demander_code(ctx.horloge())
+        code = ctx.connexion.demander_code(ctx.horloge(), ip_client(environ))
     except PasConfigure:
         raise ErreurApi("pas_configure") from None
     except TropDeCodes as e:
@@ -165,6 +174,9 @@ def decider(ctx: Contexte, environ, m):
         jeton = ctx.cles.preparer(projet, courriel=demande["courriel"], limite=limite, nom=demande["nom"],
                                   organisation=demande["organisation"] or None, maintenant=maintenant)
     except ValueError:
+        # Nom pris : peut-être par une approbation de la même demande, faite dans un autre onglet.
+        if (ctx.demandes.obtenir(demande["id"]) or {}).get("etat") != "en_attente":
+            raise ErreurApi("deja_decidee") from None
         raise ErreurApi("projet_pris") from None
     try:
         ctx.demandes.marquer_approuvee(demande["id"], projet, maintenant)
@@ -198,6 +210,14 @@ def agir_projet(ctx: Contexte, environ, m):
     if fiche is None:
         raise ErreurApi("projet_inconnu")
     try:
+        return _agir(ctx, projet, action, fiche, donnees, maintenant)
+    except KeyError:
+        # Supprimé entre la lecture et l'action (autre onglet, autre processus).
+        raise ErreurApi("projet_inconnu") from None
+
+
+def _agir(ctx: Contexte, projet: str, action: str, fiche: dict, donnees: dict, maintenant):
+    try:
         if action == "limite":
             ctx.cles.changer_limite(projet, donnees.get("limite"))
             return _ok()
@@ -212,7 +232,10 @@ def agir_projet(ctx: Contexte, environ, m):
     if action == "supprimer":
         if fiche["etat"] != "revoquee":
             raise ErreurApi("etat_incompatible", message="Révoquez le projet avant de le supprimer.")
-        ctx.cles.supprimer(projet)
+        try:
+            ctx.cles.supprimer(projet)
+        except ValueError:  # un nouveau lien ou une clé est arrivé entre-temps
+            raise ErreurApi("etat_incompatible", message="Révoquez le projet avant de le supprimer.") from None
         ctx.demandes.effacer_projet(projet)
         return _ok()
     # nouvelle-cle (projet actif ou révoqué) et nouveau-lien (lien en attente ou expiré)
@@ -222,7 +245,10 @@ def agir_projet(ctx: Contexte, environ, m):
     if not fiche["courriel"]:
         raise ErreurApi("courriel_absent")
     _exiger_envoi(ctx)
-    jeton = ctx.cles.nouveau_lien(projet, maintenant)
+    try:
+        jeton = ctx.cles.nouveau_lien(projet, maintenant)
+    except ValueError:
+        raise ErreurApi("courriel_absent") from None
     envoye = _envoyer(ctx, fiche["courriel"],
                       messages.nouveau_lien(fiche["nom"], _lien(ctx, jeton), fiche["limite"], ctx.config.guide))
     return _ok(courriel_envoye=envoye)
@@ -251,10 +277,33 @@ def appels(ctx: Contexte, environ, m):
 def reglages(ctx: Contexte, environ, m):
     if environ["REQUEST_METHOD"] == "POST":
         donnees = lire_corps_json(environ, ctx.config.max_corps)
+        maintenant = ctx.horloge()
+        ancienne = ctx.reglages.lire()["adresse"]
+        adresse = donnees.get("adresse")
         try:
-            ctx.reglages.modifier(adresse=donnees.get("adresse"), plafond=donnees.get("plafond"))
+            adresse = valider_courriel(adresse) if adresse is not None else None
+            plafond = donnees.get("plafond")
+            if plafond is not None:
+                valider_limite(plafond)
         except ValueError as e:
             raise ErreurApi("valeur_invalide", message=f"{str(e)[:1].upper()}{str(e)[1:]}.") from None
+        change_adresse = adresse is not None and adresse != ancienne
+        if change_adresse:
+            # Cette adresse reçoit les codes de mot de passe oublié : une session volée ne doit pas pouvoir
+            # la détourner sans le mot de passe.
+            mdp = donnees.get("mot_de_passe")
+            try:
+                confirme = ctx.connexion.confirmer(mdp if isinstance(mdp, str) else "", ip_client(environ),
+                                                   maintenant)
+            except Bloque as e:
+                raise ErreurApi("bloque", [("Retry-After", str(e.attente_s))]) from None
+            if not confirme:
+                _signaler_echecs(ctx)
+                raise ErreurApi("mdp_faux", message="Mot de passe incorrect : il est demandé pour changer "
+                                                    "l'adresse des annonces.")
+        ctx.reglages.modifier(adresse=adresse, plafond=plafond)
+        if change_adresse:
+            _envoyer(ctx, ancienne, messages.alerte_adresse(adresse, maintenant))
         return _ok()
     r = ctx.reglages.lire()
     return reponse_json(200, {"adresse": r["adresse"], "plafond": r["plafond"],

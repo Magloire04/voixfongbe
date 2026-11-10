@@ -1,3 +1,4 @@
+import json
 import re
 import shutil
 import tempfile
@@ -78,6 +79,30 @@ class TestConnexion(unittest.TestCase):
         self.assertIsNotNone(self.c.ouvrir(MDP, "198.51.100.4", T))
         self.assertIsNotNone(self.c.ouvrir(MDP, IP, apres(minutes=10, seconds=1)))
 
+    def test_confirmer_le_mot_de_passe_sans_ouvrir_de_session(self):
+        avant = len(json.loads(self.chemin.read_text(encoding="utf-8"))["sessions"])
+        self.assertTrue(self.c.confirmer(MDP, IP, T))
+        self.assertEqual(len(json.loads(self.chemin.read_text(encoding="utf-8"))["sessions"]), avant)
+        for _ in range(3):
+            self.assertFalse(self.c.confirmer("faux-faux-faux", IP, T))
+        with self.assertRaises(Bloque):  # les erreurs de confirmation comptent comme celles de connexion
+            self.c.ouvrir(MDP, IP, T)
+
+    def test_alerte_apres_dix_echecs_par_heure_toutes_adresses(self):
+        # Un attaquant qui change d'adresse échappe au blocage par adresse : l'administrateur est prévenu.
+        for i in range(9):
+            self.c.ouvrir("faux-faux-faux", f"203.0.113.{i}", T)
+            self.assertIsNone(self.c.alerte_due(T))
+        self.c.ouvrir("faux-faux-faux", "203.0.113.9", T)
+        self.assertEqual(self.c.alerte_due(T), 10)
+        self.c.ouvrir("faux-faux-faux", "203.0.113.10", T)
+        self.assertIsNone(self.c.alerte_due(T))  # une seule alerte par heure
+        plus_tard = apres(hours=1, minutes=1)
+        self.assertIsNone(self.c.alerte_due(plus_tard))  # les échecs de l'heure passée ne comptent plus
+        for i in range(10):
+            self.c.confirmer("faux-faux-faux", f"198.51.100.{i}", plus_tard)
+        self.assertEqual(self.c.alerte_due(plus_tard), 10)
+
     def test_ip_jamais_en_clair(self):
         self.c.ouvrir("faux-faux-faux", IP, T)
         self.assertNotIn(IP, self.chemin.read_text(encoding="utf-8"))
@@ -132,6 +157,41 @@ class TestConnexion(unittest.TestCase):
         with self.assertRaises(TropDeCodes):
             self.c.demander_code(apres(minutes=30))
         self.c.demander_code(apres(hours=2))  # le lendemain à Porto-Novo
+
+    def test_une_adresse_n_epuise_pas_les_codes_des_autres(self):
+        for minutes in (0, 10, 20):
+            self.c.demander_code(apres(minutes=minutes), "203.0.113.66")
+        with self.assertRaises(TropDeCodes):
+            self.c.demander_code(apres(minutes=30), "203.0.113.66")
+        self.assertRegex(self.c.demander_code(apres(minutes=30), IP), r"^[0-9]{8}$")
+
+    def test_plafond_commun_de_dix_codes_par_jour(self):
+        for i in range(10):
+            self.c.demander_code(T, f"203.0.113.{i}")
+        with self.assertRaises(TropDeCodes):
+            self.c.demander_code(T, IP)
+        self.c.demander_code(apres(hours=2), IP)  # le lendemain à Porto-Novo
+
+    def test_un_nouveau_code_ne_remplace_pas_celui_en_cours(self):
+        premier = self.c.demander_code(T, IP)
+        self.c.demander_code(apres(minutes=1), "203.0.113.66")
+        self.assertTrue(self.c.changer_avec_code(premier, "nouveau-mot-de-passe", apres(minutes=2)))
+
+    def test_cinq_essais_en_tout_meme_avec_plusieurs_codes(self):
+        premier = self.c.demander_code(T, IP)
+        second = self.c.demander_code(T, "203.0.113.66")
+        faux = next(f"{n:08d}" for n in range(10 ** 8) if f"{n:08d}" not in (premier, second))
+        for _ in range(5):
+            self.assertFalse(self.c.changer_avec_code(faux, "nouveau-mot-de-passe", T))
+        for code in (premier, second):
+            self.assertFalse(self.c.changer_avec_code(code, "nouveau-mot-de-passe", T))
+
+    def test_ancien_format_du_code_encore_lu(self):
+        code = self.c.demander_code(T, IP)
+        donnees = json.loads(self.chemin.read_text(encoding="utf-8"))
+        donnees["code"] = donnees.pop("codes")[0]  # tel que l'écrivait la première version
+        self.chemin.write_text(json.dumps(donnees), encoding="utf-8")
+        self.assertTrue(self.c.changer_avec_code(code, "nouveau-mot-de-passe", apres(minutes=1)))
 
     def test_code_jamais_en_clair(self):
         code = self.c.demander_code(T)

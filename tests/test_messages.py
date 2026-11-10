@@ -55,6 +55,17 @@ class TestMessages(unittest.TestCase):
         _, texte = messages.alerte_mdp(datetime(2026, 11, 9, 21, 30, tzinfo=FUSEAU))
         self.assertIn("9 novembre 2026 à 21 h 30", texte)
 
+    def test_alerte_adresse(self):
+        sujet, texte = messages.alerte_adresse("nouvelle@exemple.bj", datetime(2026, 11, 10, 9, 5, tzinfo=FUSEAU))
+        self.assertTrue(sujet)
+        for attendu in ("nouvelle@exemple.bj", "10 novembre 2026 à 9 h 05", "scripts/admin.py mot-de-passe"):
+            self.assertIn(attendu, texte)
+
+    def test_alerte_echecs(self):
+        sujet, texte = messages.alerte_echecs(12, datetime(2026, 11, 10, 9, 5, tzinfo=FUSEAU))
+        self.assertTrue(sujet)
+        self.assertIn("12 mots de passe faux", texte)
+
     def test_essai(self):
         sujet, texte = messages.essai()
         self.assertTrue(sujet and texte)

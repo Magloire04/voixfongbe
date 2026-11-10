@@ -23,7 +23,10 @@ BLOCAGE = timedelta(minutes=10)
 DUREE_CODE = timedelta(minutes=10)
 ESSAIS_CODE = 5
 ECART_CODES = timedelta(minutes=10)
-CODES_PAR_JOUR = 3
+CODES_PAR_JOUR = 3  # par adresse
+CODES_PAR_JOUR_EN_TOUT = 10  # pour tout le service : la boîte de l'administrateur n'est pas inondée
+SEUIL_ALERTE = 10  # mots de passe faux en une heure, toutes adresses confondues
+FENETRE_ALERTE = timedelta(hours=1)
 EMPREINTE = re.compile(r"^scrypt:([0-9a-f]{32}):([0-9a-f]{128})$")
 
 
@@ -85,14 +88,19 @@ class Connexion:
         d.setdefault("mdp", None)
         d.setdefault("sessions", {})
         d.setdefault("echecs", {})
-        d.setdefault("code", None)
+        d.setdefault("codes", [])
+        if d.get("code"):  # première version : un seul code en cours
+            d["codes"].append(d["code"])
+        d.pop("code", None)
         d.setdefault("envois", {"jour": None, "n": 0, "dernier": None})
+        d.setdefault("echecs_globaux", [])  # heures des mots de passe faux de la dernière heure
+        d.setdefault("alerte_le", None)
         return d
 
     @staticmethod
     def _poser_mdp(d: dict, mdp: str) -> None:
         # Un nouveau mot de passe lève aussi les blocages : qui l'a changé peut se connecter tout de suite.
-        d.update(mdp=empreinte_mdp(mdp), sessions={}, code=None, echecs={})
+        d.update(mdp=empreinte_mdp(mdp), sessions={}, codes=[], echecs={})
 
     @staticmethod
     def _echecs_vivants(d: dict, maintenant: datetime) -> dict:
@@ -104,6 +112,25 @@ class Connexion:
             if (fin and maintenant < _date(fin)) or (debut and maintenant - _date(debut) <= BLOCAGE):
                 vivants[cle] = echec
         return vivants
+
+    @staticmethod
+    def _recents(d: dict, maintenant: datetime) -> list[str]:
+        return [t for t in d["echecs_globaux"] if maintenant - _date(t) <= FENETRE_ALERTE]
+
+    def alerte_due(self, maintenant: datetime) -> int | None:
+        """Le nombre de mots de passe faux de la dernière heure, toutes adresses confondues, s'il atteint
+        le seuil et qu'aucune alerte n'est partie dans l'heure ; sinon None. Le blocage par adresse ne voit
+        pas un attaquant qui change d'adresse ; un blocage commun, lui, l'empêcherait de se connecter
+        aussi : on prévient donc l'administrateur, sans rien bloquer de plus."""
+        with verrou(self.chemin):
+            d = self._lire()
+            recents = self._recents(d, maintenant)
+            deja = d["alerte_le"] and maintenant - _date(d["alerte_le"]) <= FENETRE_ALERTE
+            if len(recents) < SEUIL_ALERTE or deja:
+                return None
+            d["alerte_le"] = _iso(maintenant)
+            ecrire_json(self.chemin, d)
+        return len(recents)
 
     def configure(self) -> bool:
         return bool(self._lire()["mdp"])
@@ -118,6 +145,14 @@ class Connexion:
 
     # Sessions
     def ouvrir(self, mdp: str, ip: str, maintenant: datetime) -> str | None:
+        return self._essayer(mdp, ip, maintenant, session=True)
+
+    def confirmer(self, mdp: str, ip: str, maintenant: datetime) -> bool:
+        """Revérifie le mot de passe avant une action sensible, sans ouvrir de session. Une erreur
+        compte comme une erreur de connexion : trois en 10 minutes bloquent l'adresse."""
+        return self._essayer(mdp, ip, maintenant, session=False) is not None
+
+    def _essayer(self, mdp: str, ip: str, maintenant: datetime, session: bool) -> str | None:
         cle_ip = _sha(f"ip|{ip}")
         neuf = {"n": 0, "depuis": None, "bloque_jusqu": None}
         with verrou(self.chemin):
@@ -139,11 +174,14 @@ class Connexion:
                 if echec["n"] >= ESSAIS_MDP:
                     echec = {**neuf, "bloque_jusqu": _iso(maintenant + BLOCAGE)}
                 d["echecs"] = {**self._echecs_vivants(d, maintenant), cle_ip: echec}
+                d["echecs_globaux"] = self._recents(d, maintenant)[-999:] + [_iso(maintenant)]
                 ecrire_json(self.chemin, d)
                 return None
             d["echecs"].pop(cle_ip, None)
-            jeton = secrets.token_urlsafe(32)
-            d["sessions"][_sha(jeton)] = _iso(maintenant)
+            jeton = ""
+            if session:
+                jeton = secrets.token_urlsafe(32)
+                d["sessions"][_sha(jeton)] = _iso(maintenant)
             ecrire_json(self.chemin, d)
         return jeton
 
@@ -174,37 +212,58 @@ class Connexion:
                 ecrire_json(self.chemin, d)
 
     # Mot de passe oublié
-    def demander_code(self, maintenant: datetime) -> str:
+    def demander_code(self, maintenant: datetime, ip: str = "inconnue") -> str:
+        """Un code de 8 chiffres, valable 10 minutes. Par adresse : un code toutes les 10 minutes et 3 par
+        jour ; pour tout le service : 10 par jour (la boîte de l'administrateur). Ainsi une seule adresse ne
+        peut pas épuiser les codes des autres. Un nouveau code s'ajoute à ceux en cours sans les remplacer."""
         local = maintenant.astimezone(FUSEAU)
         jour = local.date().isoformat()
+        minuit = datetime.combine(local.date() + timedelta(days=1), time(0), FUSEAU)
+        cle_ip = _sha(f"code|{ip}")
         with verrou(self.chemin):
             d = self._lire()
             if not d["mdp"]:
                 raise PasConfigure()
-            envois = d["envois"] if d["envois"]["jour"] == jour else {"jour": jour, "n": 0, "dernier": None}
-            if envois["dernier"] and maintenant - _date(envois["dernier"]) < ECART_CODES:
-                raise TropDeCodes(_secondes(_date(envois["dernier"]) + ECART_CODES - maintenant))
-            if envois["n"] >= CODES_PAR_JOUR:
-                minuit = datetime.combine(local.date() + timedelta(days=1), time(0), FUSEAU)
+            envois = d["envois"] if d["envois"].get("jour") == jour else {"jour": jour, "n": 0, "ips": {}}
+            envois.setdefault("ips", {})
+            par_ip = envois["ips"].get(cle_ip, {"n": 0, "dernier": None})
+            if par_ip["dernier"] and maintenant - _date(par_ip["dernier"]) < ECART_CODES:
+                raise TropDeCodes(_secondes(_date(par_ip["dernier"]) + ECART_CODES - maintenant))
+            if par_ip["n"] >= CODES_PAR_JOUR or envois["n"] >= CODES_PAR_JOUR_EN_TOUT:
                 raise TropDeCodes(_secondes(minuit - local))
             code = f"{secrets.randbelow(10 ** 8):08d}"
             sel = secrets.token_hex(16)
-            d["code"] = {"sel": sel, "empreinte": _sha(sel + code), "expire_le": _iso(maintenant + DUREE_CODE),
-                         "essais": ESSAIS_CODE}
-            d["envois"] = {"jour": jour, "n": envois["n"] + 1, "dernier": _iso(maintenant)}
+            d["codes"] = self._codes_ouverts(d, maintenant) + [{
+                "sel": sel, "empreinte": _sha(sel + code), "expire_le": _iso(maintenant + DUREE_CODE),
+                "essais": ESSAIS_CODE}]
+            envois["ips"][cle_ip] = {"n": par_ip["n"] + 1, "dernier": _iso(maintenant)}
+            envois["n"] += 1
+            d["envois"] = envois
             ecrire_json(self.chemin, d)
         return code
+
+    @staticmethod
+    def _codes_ouverts(d: dict, maintenant: datetime) -> list[dict]:
+        return [c for c in d["codes"] if c["essais"] > 0 and maintenant <= _date(c["expire_le"])]
 
     def changer_avec_code(self, code: str, nouveau: str, maintenant: datetime) -> bool:
         if not isinstance(nouveau, str) or len(nouveau) < MDP_MIN:
             raise ValueError(f"le mot de passe doit faire au moins {MDP_MIN} caractères")
         with verrou(self.chemin):
             d = self._lire()
-            attendu = d["code"]
-            if not attendu or attendu["essais"] <= 0 or maintenant > _date(attendu["expire_le"]):
+            ouverts = self._codes_ouverts(d, maintenant)
+            if not ouverts:
                 return False
-            if not hmac.compare_digest(_sha(attendu["sel"] + str(code)), attendu["empreinte"]):
-                attendu["essais"] -= 1
+            bon = False
+            for attendu in ouverts:  # tout comparer : durée constante
+                if hmac.compare_digest(_sha(attendu["sel"] + str(code)), attendu["empreinte"]):
+                    bon = True
+            if not bon:
+                # Chaque erreur coûte un essai à tous les codes en cours : 5 essais en tout, même si
+                # plusieurs codes ont été demandés.
+                for attendu in ouverts:
+                    attendu["essais"] -= 1
+                d["codes"] = ouverts
                 ecrire_json(self.chemin, d)
                 return False
             self._poser_mdp(d, nouveau)

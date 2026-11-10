@@ -35,7 +35,8 @@ def api_demande(ctx: Contexte, environ, m):
         raise ErreurApi("demandes_fermees") from None
     except TropDeDemandes:
         raise ErreurApi("trop_de_demandes") from None
-    # Seul Elisée est prévenu : aucun e-mail ne part vers l'adresse saisie avant sa décision.
+    # Seul Elisée est prévenu : aucun e-mail ne part vers l'adresse saisie avant sa décision. L'envoi se
+    # fait pendant la requête (voir courriel.py) ; son échec n'empêche pas la réponse.
     sujet, texte = messages.annonce_demande(demande, f"https://{ctx.config.hote}/admin")
     ctx.courriel.envoyer(ctx.reglages.lire()["adresse"], sujet, texte)
     return reponse_json(200, {"ok": True})
