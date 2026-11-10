@@ -160,7 +160,9 @@
   for (const o of ONGLETS) $('t-' + o).addEventListener('click', () => choisirOnglet(o, false));
   document.querySelector('.onglets').addEventListener('keydown', (ev) => {
     const i = ONGLETS.indexOf(ongletActif);
-    const cible = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: ONGLETS.length - 1 }[ev.key];
+    // Rubriques en colonne sur ordinateur, en ligne sur téléphone : les quatre flèches servent.
+    const cible = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0,
+      End: ONGLETS.length - 1 }[ev.key];
     if (cible === undefined) return;
     ev.preventDefault();
     choisirOnglet(ONGLETS[(cible + ONGLETS.length) % ONGLETS.length], true);
