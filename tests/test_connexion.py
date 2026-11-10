@@ -158,6 +158,41 @@ class TestConnexion(unittest.TestCase):
             self.c.demander_code(apres(minutes=30))
         self.c.demander_code(apres(hours=2))  # le lendemain à Porto-Novo
 
+    def test_une_adresse_n_epuise_pas_les_codes_des_autres(self):
+        for minutes in (0, 10, 20):
+            self.c.demander_code(apres(minutes=minutes), "203.0.113.66")
+        with self.assertRaises(TropDeCodes):
+            self.c.demander_code(apres(minutes=30), "203.0.113.66")
+        self.assertRegex(self.c.demander_code(apres(minutes=30), IP), r"^[0-9]{8}$")
+
+    def test_plafond_commun_de_dix_codes_par_jour(self):
+        for i in range(10):
+            self.c.demander_code(T, f"203.0.113.{i}")
+        with self.assertRaises(TropDeCodes):
+            self.c.demander_code(T, IP)
+        self.c.demander_code(apres(hours=2), IP)  # le lendemain à Porto-Novo
+
+    def test_un_nouveau_code_ne_remplace_pas_celui_en_cours(self):
+        premier = self.c.demander_code(T, IP)
+        self.c.demander_code(apres(minutes=1), "203.0.113.66")
+        self.assertTrue(self.c.changer_avec_code(premier, "nouveau-mot-de-passe", apres(minutes=2)))
+
+    def test_cinq_essais_en_tout_meme_avec_plusieurs_codes(self):
+        premier = self.c.demander_code(T, IP)
+        second = self.c.demander_code(T, "203.0.113.66")
+        faux = next(f"{n:08d}" for n in range(10 ** 8) if f"{n:08d}" not in (premier, second))
+        for _ in range(5):
+            self.assertFalse(self.c.changer_avec_code(faux, "nouveau-mot-de-passe", T))
+        for code in (premier, second):
+            self.assertFalse(self.c.changer_avec_code(code, "nouveau-mot-de-passe", T))
+
+    def test_ancien_format_du_code_encore_lu(self):
+        code = self.c.demander_code(T, IP)
+        donnees = json.loads(self.chemin.read_text(encoding="utf-8"))
+        donnees["code"] = donnees.pop("codes")[0]  # tel que l'écrivait la première version
+        self.chemin.write_text(json.dumps(donnees), encoding="utf-8")
+        self.assertTrue(self.c.changer_avec_code(code, "nouveau-mot-de-passe", apres(minutes=1)))
+
     def test_code_jamais_en_clair(self):
         code = self.c.demander_code(T)
         self.assertNotIn(code, self.chemin.read_text(encoding="utf-8"))

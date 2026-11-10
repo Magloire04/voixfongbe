@@ -112,7 +112,7 @@ def oubli(ctx: Contexte, environ, m):
     if not ctx.courriel.configure():
         raise ErreurApi("smtp_absent")
     try:
-        code = ctx.connexion.demander_code(ctx.horloge())
+        code = ctx.connexion.demander_code(ctx.horloge(), ip_client(environ))
     except PasConfigure:
         raise ErreurApi("pas_configure") from None
     except TropDeCodes as e:

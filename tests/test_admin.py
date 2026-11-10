@@ -390,6 +390,11 @@ class TestAdmin(unittest.TestCase):
         statut, entetes, corps = appeler(self.app, "POST", "/api/admin/oubli", {}, ORIGINE)
         self.assertEqual((statut, json.loads(corps)["code"], entetes["Retry-After"]), (429, "trop_de_codes", "600"))
 
+    def test_une_autre_adresse_obtient_son_code(self):
+        appeler(self.app, "POST", "/api/admin/oubli", {}, {**ORIGINE, "X-Forwarded-For": "203.0.113.66"})
+        r = appeler(self.app, "POST", "/api/admin/oubli", {}, {**ORIGINE, "X-Forwarded-For": "198.51.100.4"})
+        self.assertEqual(r[0], 200)
+
     def test_oubli_sans_envoi_configure(self):
         self.courriel.configure_ = False
         self.assertEqual(self.code(appeler(self.app, "POST", "/api/admin/oubli", {}, ORIGINE)), (503, "smtp_absent"))
