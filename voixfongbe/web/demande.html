@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Demander un accès à la voix fon</title>
+<link rel="icon" href="/static/icone.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-publique">
+<header class="bande">
+  <a class="logo" href="/demande">Voix fon</a>
+  <span class="sous">un service TECHNUM</span>
+</header>
+<main>
+  <div class="feuille">
+    <h1>Demander un accès à la voix fon</h1>
+    <p class="intro">Une voix de synthèse en fon pour votre application, gratuite et réservée aux projets non commerciaux. Votre serveur envoie un texte en fon, l'API rend le son en MP3 ou en WAV.</p>
+
+    <p id="fermees" class="avertissement" hidden>Les demandes sont momentanément fermées. Réessayez dans quelques jours.</p>
+
+    <form id="formulaire" novalidate>
+      <div class="champ">
+        <label for="nom">Nom et prénom</label>
+        <input type="text" id="nom" name="nom" autocomplete="name" maxlength="100" required aria-describedby="erreur-nom">
+        <p class="erreur-champ" id="erreur-nom" hidden></p>
+      </div>
+      <div class="champ">
+        <label for="courriel">Adresse e-mail</label>
+        <input type="email" id="courriel" name="courriel" autocomplete="email" maxlength="254" required aria-describedby="aide-courriel erreur-courriel">
+        <span class="aide" id="aide-courriel">La réponse arrivera à cette adresse.</span>
+        <p class="erreur-champ" id="erreur-courriel" hidden></p>
+      </div>
+      <div class="champ">
+        <label for="organisation">Organisation <span class="facultatif">(facultatif)</span></label>
+        <input type="text" id="organisation" name="organisation" autocomplete="organization" maxlength="120" aria-describedby="erreur-organisation">
+        <p class="erreur-champ" id="erreur-organisation" hidden></p>
+      </div>
+      <div class="champ">
+        <label for="description">Votre projet en quelques lignes</label>
+        <textarea id="description" name="description" maxlength="1000" required aria-describedby="aide-description erreur-description"></textarea>
+        <span class="aide" id="aide-description">À quoi servira la voix, pour qui. <span id="compteur">0</span> / 1 000 caractères, 20 au moins.</span>
+        <p class="erreur-champ" id="erreur-description" hidden></p>
+      </div>
+      <div class="piege" aria-hidden="true">
+        <label for="site_web">Site web</label>
+        <input type="text" id="site_web" name="site_web" tabindex="-1" autocomplete="off">
+      </div>
+      <div class="champ">
+        <label class="case" for="accord">
+          <input type="checkbox" id="accord" name="accord" required aria-describedby="erreur-accord">
+          <span>Mon projet n'est pas commercial, et j'afficherai la mention « Voix : MMS-TTS de Meta (CC BY-NC 4.0) ».</span>
+        </label>
+        <p class="erreur-champ" id="erreur-accord" hidden></p>
+      </div>
+      <button type="submit" class="bouton large" id="envoyer">Envoyer ma demande</button>
+      <p class="message erreur" id="message" role="alert"></p>
+    </form>
+
+    <div id="recue" class="bloc-final" hidden tabindex="-1">
+      <h2>Demande reçue</h2>
+      <p>Vous recevrez un e-mail dès qu'elle aura été examinée.</p>
+    </div>
+
+    <p class="notice">Vos données servent seulement à traiter votre demande et à vous contacter. Une demande refusée est effacée 90 jours après la décision. Contact : <a href="mailto:technum.services@bytechnum.com">technum.services@bytechnum.com</a></p>
+  </div>
+</main>
+<script src="/static/demande.js"></script>
+</body>
+</html>

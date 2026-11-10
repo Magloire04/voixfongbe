@@ -43,20 +43,43 @@ class MoteurFactice:
         return (0.3 * numpy.sin(numpy.arange(160 * len(ids)) / 8)).astype(numpy.float32)
 
 
-def appeler(app, methode: str, chemin: str, corps=None, entetes: dict | None = None):
-    """Rend (statut, entêtes, corps). corps : dict (envoyé en JSON), bytes ou None."""
+class CourrielFactice:
+    """Remplace l'envoi SMTP : note les e-mails au lieu de les envoyer."""
+
+    def __init__(self):
+        self.envoyes = []  # {"a", "sujet", "texte"}
+        self.en_panne = False
+        self.configure_ = True
+
+    def configure(self) -> bool:
+        return self.configure_
+
+    def envoyer(self, destinataire: str, sujet: str, texte: str) -> bool:
+        if self.en_panne or not self.configure_:
+            return False
+        self.envoyes.append({"a": destinataire, "sujet": sujet, "texte": texte})
+        return True
+
+
+ORIGINE = {"Origin": "https://voix.bytechnum.com"}
+
+
+def appeler(app, methode: str, chemin: str, corps=None, entetes: dict | None = None, requete: str = ""):
+    """Rend (statut, entêtes, corps). corps : dict (envoyé en JSON), bytes ou None ; requete : QUERY_STRING."""
     if isinstance(corps, (dict, list)):
         donnees = json.dumps(corps).encode("utf-8")
     else:
         donnees = corps or b""
     environ = {
-        "REQUEST_METHOD": methode, "PATH_INFO": chemin, "QUERY_STRING": "", "SERVER_NAME": "voix.bytechnum.com",
-        "SERVER_PORT": "443", "HTTP_HOST": "voix.bytechnum.com", "wsgi.url_scheme": "https",
-        "wsgi.input": io.BytesIO(donnees), "wsgi.errors": io.StringIO(), "CONTENT_LENGTH": str(len(donnees)),
-        "CONTENT_TYPE": "application/json",
+        "REQUEST_METHOD": methode, "PATH_INFO": chemin, "QUERY_STRING": requete,
+        "SERVER_NAME": "voix.bytechnum.com", "SERVER_PORT": "443", "HTTP_HOST": "voix.bytechnum.com",
+        "wsgi.url_scheme": "https", "wsgi.input": io.BytesIO(donnees), "wsgi.errors": io.StringIO(),
+        "CONTENT_LENGTH": str(len(donnees)), "CONTENT_TYPE": "application/json",
+        "REMOTE_ADDR": "127.0.0.1",  # comme sur le serveur : LiteSpeed relaie en local
     }
     for nom, valeur in (entetes or {}).items():
-        environ["HTTP_" + nom.upper().replace("-", "_")] = valeur
+        cle = nom.upper().replace("-", "_")
+        environ[cle if cle in ("CONTENT_TYPE", "CONTENT_LENGTH", "REMOTE_ADDR") else "HTTP_" + cle] = valeur
     recu = {}
 
     def start_response(statut, liste, exc_info=None):

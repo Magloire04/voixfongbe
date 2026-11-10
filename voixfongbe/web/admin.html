@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Administration de la voix fon</title>
+<link rel="icon" href="/static/icone.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-admin">
+<header class="bande">
+  <span class="logo">Voix fon</span>
+  <span class="sous">Administration</span>
+  <span class="a-droite">
+    <span class="etat-voix" id="etat-voix"></span>
+    <button type="button" class="bouton second petit" id="deconnexion" hidden>Se déconnecter</button>
+  </span>
+</header>
+<main>
+  <p class="annonce" id="annonce" role="status" aria-live="polite"></p>
+
+  <section class="feuille" id="non-configure" hidden>
+    <h1>Espace pas encore prêt</h1>
+    <p>Le mot de passe de l'espace admin n'est pas encore défini. Il se définit une seule fois en SSH, avec <code>scripts/admin.py mot-de-passe</code> (voir EXPLOITATION.md).</p>
+  </section>
+
+  <section class="feuille" id="ecran-connexion" hidden>
+    <h1>Connexion</h1>
+    <form id="form-connexion">
+      <div class="champ">
+        <label for="mdp">Mot de passe</label>
+        <input type="password" id="mdp" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="bouton large">Se connecter</button>
+      <p class="message erreur" id="msg-connexion" role="alert"></p>
+    </form>
+    <p><button type="button" class="lien" id="vers-oubli">Mot de passe oublié ?</button></p>
+    <div id="oubli" hidden>
+      <h2>Mot de passe oublié</h2>
+      <p>Un code à 8 chiffres part vers l'adresse de l'administrateur. Il reste valable 10 minutes.</p>
+      <button type="button" class="bouton second" id="envoyer-code">Envoyer un code</button>
+      <form id="form-code" hidden>
+        <div class="champ">
+          <label for="code">Code reçu</label>
+          <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required>
+        </div>
+        <div class="champ">
+          <label for="nouveau">Nouveau mot de passe</label>
+          <input type="password" id="nouveau" autocomplete="new-password" minlength="12" required aria-describedby="aide-nouveau">
+          <span class="aide" id="aide-nouveau">12 caractères au moins.</span>
+        </div>
+        <div class="champ">
+          <label for="nouveau-bis">Le même, une seconde fois</label>
+          <input type="password" id="nouveau-bis" autocomplete="new-password" minlength="12" required>
+        </div>
+        <button type="submit" class="bouton large">Changer le mot de passe</button>
+      </form>
+      <p class="message" id="msg-oubli" role="status"></p>
+    </div>
+  </section>
+
+  <section id="espace" hidden>
+    <nav class="onglets" role="tablist" aria-label="Rubriques">
+      <button type="button" role="tab" id="t-demandes" aria-controls="p-demandes" aria-selected="true">Demandes<span class="compte" id="nb-attente"></span></button>
+      <button type="button" role="tab" id="t-projets" aria-controls="p-projets" aria-selected="false" tabindex="-1">Projets et limites</button>
+      <button type="button" role="tab" id="t-appels" aria-controls="p-appels" aria-selected="false" tabindex="-1">Appels</button>
+      <button type="button" role="tab" id="t-reglages" aria-controls="p-reglages" aria-selected="false" tabindex="-1">Réglages</button>
+    </nav>
+
+    <section class="panneau" id="p-demandes" role="tabpanel" aria-labelledby="t-demandes">
+      <h2>En attente</h2>
+      <div id="liste-attente"></div>
+      <h2>Décisions</h2>
+      <div class="defile">
+        <table>
+          <thead><tr><th>Décidée le</th><th>Demandeur</th><th>Décision</th></tr></thead>
+          <tbody id="historique"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panneau" id="p-projets" role="tabpanel" aria-labelledby="t-projets" hidden>
+      <div class="chiffres">
+        <div><b id="total-jour">0</b>demandes aujourd'hui, tous projets</div>
+        <div><b id="plafond-affiche">0</b>plafond du jour, tous projets</div>
+      </div>
+      <form class="ligne-form" id="form-plafond">
+        <div class="champ">
+          <label for="plafond">Plafond commun par jour</label>
+          <input type="number" id="plafond" min="1" max="1000000" step="1" required>
+        </div>
+        <button type="submit" class="bouton second">Enregistrer le plafond</button>
+      </form>
+      <div class="defile">
+        <table>
+          <thead><tr><th>Projet</th><th>État</th><th>Aujourd'hui</th><th>Limite par jour</th><th>Adresse</th><th>Actions</th></tr></thead>
+          <tbody id="projets"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panneau" id="p-appels" role="tabpanel" aria-labelledby="t-appels" hidden>
+      <div class="chiffres">
+        <div><b id="r-demandes">0</b>demandes ce jour-là</div>
+        <div><b id="r-erreurs">0</b>erreurs</div>
+        <div><b id="r-temps">-</b>temps moyen d'une synthèse</div>
+      </div>
+      <form class="ligne-form" id="filtres">
+        <div class="champ">
+          <label for="f-jour">Jour</label>
+          <select id="f-jour"></select>
+        </div>
+        <div class="champ">
+          <label for="f-projet">Projet</label>
+          <select id="f-projet"></select>
+        </div>
+      </form>
+      <div class="defile">
+        <table>
+          <thead><tr><th>Heure</th><th>Projet</th><th>Caractères</th><th>Format</th><th>Durée</th><th>Cache</th><th>Résultat</th></tr></thead>
+          <tbody id="appels"></tbody>
+        </table>
+      </div>
+      <div class="pages">
+        <button type="button" class="bouton second petit" id="page-avant">Page précédente</button>
+        <span id="page-texte"></span>
+        <button type="button" class="bouton second petit" id="page-apres">Page suivante</button>
+      </div>
+    </section>
+
+    <section class="panneau" id="p-reglages" role="tabpanel" aria-labelledby="t-reglages" hidden>
+      <div class="reglage">
+        <h2>Adresse des annonces</h2>
+        <p>Elle reçoit l'annonce de chaque demande et les codes de mot de passe oublié. Elle n'est jamais affichée au public.</p>
+        <form class="ligne-form" id="form-adresse">
+          <div class="champ">
+            <label for="adresse">Adresse e-mail</label>
+            <input type="email" id="adresse" required>
+          </div>
+          <button type="submit" class="bouton second">Enregistrer l'adresse</button>
+        </form>
+      </div>
+      <div class="reglage">
+        <h2>Envoi des e-mails</h2>
+        <p id="etat-smtp"></p>
+        <button type="button" class="bouton second" id="essai">Envoyer un e-mail d'essai</button>
+      </div>
+      <div class="reglage">
+        <h2>Voix</h2>
+        <p id="etat-voix-detail"></p>
+      </div>
+    </section>
+  </section>
+</main>
+<script src="/static/admin.js"></script>
+</body>
+</html>

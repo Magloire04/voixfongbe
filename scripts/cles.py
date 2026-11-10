@@ -2,8 +2,10 @@
 
     python scripts/cles.py creer <projet>          crée une clé et l'affiche UNE seule fois
     python scripts/cles.py creer <projet> --brut   n'affiche que la clé (pour une variable de shell)
-    python scripts/cles.py lister                  projets qui ont une clé
+    python scripts/cles.py lister                  projets, état et limite par jour
     python scripts/cles.py revoquer <projet>       la clé du projet ne marche plus
+
+L'espace admin (https://voix.bytechnum.com/admin) fait tout cela sans terminal, et plus encore.
 
 Le nom du projet : 2 à 40 caractères parmi a-z, 0-9 et le tiret. Le serveur ne garde que
 l'empreinte de la clé : une clé perdue ne se retrouve pas, on la révoque et on en crée une autre.
@@ -20,7 +22,10 @@ from voixfongbe.cles import Cles  # noqa: E402
 from voixfongbe.config import Config  # noqa: E402
 
 
-def main() -> int:
+ETATS = {"active": "active", "lien_en_attente": "lien envoyé", "lien_expire": "lien expiré", "revoquee": "révoquée"}
+
+
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sous = p.add_subparsers(dest="action", required=True)
     c = sous.add_parser("creer")
@@ -29,7 +34,7 @@ def main() -> int:
     sous.add_parser("lister")
     r = sous.add_parser("revoquer")
     r.add_argument("projet")
-    args = p.parse_args()
+    args = p.parse_args(argv)
 
     stockage = Config.depuis_env(RACINE).dossier_stockage
     stockage.mkdir(parents=True, exist_ok=True)
@@ -47,9 +52,12 @@ def main() -> int:
                 print("variable d'environnement du serveur du projet, jamais dans le code d'une page web.")
         elif args.action == "lister":
             for x in cles.lister():
-                print(f"{x['projet']:40s} créée le {x['cree_le']}")
+                print(f"{x['projet']:40s} {ETATS[x['etat']]:12s} {x['limite']:>9} par jour   créé le {x['cree_le']}")
         elif args.action == "revoquer":
-            print("Clé révoquée." if cles.revoquer(args.projet) else "Aucune clé pour ce projet.")
+            if cles.revoquer(args.projet):
+                print("Clé révoquée. Le projet reste visible dans l'espace admin, où il peut être supprimé.")
+            else:
+                print("Aucune clé ni lien en attente pour ce projet.")
     except ValueError as e:
         print(f"Erreur : {e}.", file=sys.stderr)
         return 1

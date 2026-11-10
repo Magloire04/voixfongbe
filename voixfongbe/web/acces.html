@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Votre clé d'accès à la voix fon</title>
+<link rel="icon" href="/static/icone.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="page-publique">
+<header class="bande">
+  <span class="logo">Voix fon</span>
+  <span class="sous">un service TECHNUM</span>
+</header>
+<main>
+  <div class="feuille">
+    <h1>Votre clé d'accès à la voix fon</h1>
+
+    <p id="chargement">Vérification du lien en cours.</p>
+
+    <div id="pret" hidden>
+      <p>Votre accès est accordé. La clé s'affiche une seule fois : préparez l'endroit où vous allez la ranger, puis affichez-la.</p>
+      <button type="button" class="bouton" id="afficher">Afficher ma clé</button>
+      <p class="message erreur" id="message" role="alert"></p>
+    </div>
+
+    <div id="zone-cle" hidden>
+      <p class="avertissement">Copiez-la maintenant : elle ne sera plus jamais affichée.</p>
+      <code class="cle" id="cle"></code>
+      <div class="actions">
+        <button type="button" class="bouton" id="copier">Copier</button>
+        <span class="message ok" id="copie" role="status"></span>
+      </div>
+      <ol class="suite">
+        <li>Rangez la clé dans une variable d'environnement de votre serveur, par exemple <code>VOIX_FON_CLE</code>. Jamais dans le code d'une page web ou d'une application mobile.</li>
+        <li>Projet <strong id="projet"></strong> : <strong id="limite"></strong> demandes par jour.</li>
+        <li>Suivez le guide de configuration : <a id="guide" href="https://github.com/Magloire04/voixfongbe#readme">github.com/Magloire04/voixfongbe</a>.</li>
+        <li>Affichez dans votre application la mention « Voix : MMS-TTS de Meta (CC BY-NC 4.0) ». La voix est réservée aux projets non commerciaux.</li>
+      </ol>
+    </div>
+
+    <div id="invalide" hidden>
+      <p class="avertissement">Ce lien a expiré ou a déjà servi.</p>
+      <p>Pour en recevoir un nouveau, écrivez à <a href="mailto:technum.services@bytechnum.com">technum.services@bytechnum.com</a>.</p>
+    </div>
+  </div>
+</main>
+<script src="/static/acces.js"></script>
+</body>
+</html>

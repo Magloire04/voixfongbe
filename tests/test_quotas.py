@@ -67,6 +67,22 @@ class TestQuotas(unittest.TestCase):
         self.assertIsNone(q.consommer("demo", MIDI))
         self.assertIsNotNone(q.consommer("demo", MIDI))
 
+    def test_limite_passee_a_l_appel(self):
+        q = Quotas(self.chemin, par_cle=100, total=300)
+        self.assertIsNone(q.consommer("demo", MIDI, limite=2))
+        self.assertIsNone(q.consommer("demo", MIDI, limite=2))
+        self.assertIsNotNone(q.consommer("demo", MIDI, limite=2))
+        self.assertIsNone(q.consommer("autre", MIDI, plafond=4))
+        self.assertIsNotNone(q.consommer("autre", MIDI, plafond=3))
+
+    def test_du_jour(self):
+        q = Quotas(self.chemin)
+        for projet in ("a", "a", "b"):
+            q.consommer(projet, MIDI)
+        self.assertEqual(q.du_jour(MIDI), {"total": 3, "projets": {"a": 2, "b": 1}})
+        self.assertEqual(q.du_jour(MIDI + timedelta(days=1)), {"total": 0, "projets": {}})
+        self.assertEqual(Quotas(self.dossier / "absent.json").du_jour(MIDI), {"total": 0, "projets": {}})
+
     def test_deux_processus_ne_perdent_aucun_decompte(self):
         processus = [multiprocessing.Process(target=_consommer_50, args=(str(self.chemin),)) for _ in range(2)]
         for p in processus:

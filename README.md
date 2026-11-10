@@ -6,13 +6,21 @@ Ce service transforme un texte écrit en fon (fongbé) en son, avec la voix de s
 - Langue : fon uniquement.
 - Usage **non commercial uniquement** (licence de la voix, voir plus bas).
 
+## Demander un accès
+
+Remplissez le formulaire [voix.bytechnum.com/demande](https://voix.bytechnum.com/demande) : nom, adresse e-mail, organisation (facultatif) et quelques lignes sur votre projet. Chaque demande est examinée par TECHNUM.
+
+- **Demande acceptée** : vous recevez un e-mail avec un lien valable 7 jours. Ce lien affiche votre clé **une seule fois** : copiez-la aussitôt.
+- **Demande refusée** : un e-mail vous le dit, avec le motif s'il y en a un.
+- **Lien expiré ou clé perdue** : écrivez à technum.services@bytechnum.com pour recevoir un nouveau lien. L'ancienne clé cesse alors de marcher.
+
 ## 1. Votre clé d'accès
 
-Chaque projet a sa propre clé. Elle vous est transmise par Elisée. Elle ne sera plus jamais réaffichée : gardez-la précieusement.
+Chaque projet a sa propre clé. Elle s'affiche une seule fois, par le lien reçu par e-mail : gardez-la précieusement.
 
 - Rangez-la dans une **variable d'environnement de votre serveur**, par exemple `VOIX_FON_CLE`.
 - Ne la mettez **jamais** dans le code d'une page web ou d'une application mobile : n'importe qui pourrait la lire et utiliser votre quota.
-- En cas de fuite, demandez une nouvelle clé : l'ancienne sera révoquée.
+- En cas de fuite, demandez une nouvelle clé à technum.services@bytechnum.com : l'ancienne sera révoquée.
 
 Le service n'accepte pas les appels directs depuis un navigateur. Le navigateur appelle **votre serveur**, qui appelle la voix (voir l'exemple de relais, section 4).
 
@@ -166,7 +174,7 @@ Toute erreur rend du JSON : `{"erreur": "<explication en français>", "code": "<
 | 429 | `quota_jour` | Quota du jour atteint (le vôtre, ou celui de tout le service). L'en-tête `Retry-After` donne le nombre de secondes jusqu'à minuit, heure de Porto-Novo. |
 | 503 | `voix_occupee` | La voix prépare déjà une autre phrase : réessayer après le nombre de secondes indiqué par `Retry-After`. |
 | 503 | `modele_indisponible` / `delai_depasse` | Voix momentanément indisponible ou trop lente : réessayer un peu plus tard, avec un texte plus court. Si la phrase était trop longue, elle sera souvent prête au nouvel essai (`X-Voix-Cache: oui`). |
-| 500 | `erreur_interne` | Réessayer ; si cela dure, prévenir Elisée. |
+| 500 | `erreur_interne` | Réessayer ; si cela dure, écrire à technum.services@bytechnum.com. |
 
 Comptent dans le quota : les demandes qui rendent un son, et celles qui finissent en `delai_depasse` (la voix a travaillé, et la phrase sera souvent prête au nouvel essai). Les autres erreurs ne vous coûtent rien.
 
@@ -187,7 +195,7 @@ La prononciation reste celle d'une voix de synthèse : faites relire vos phrases
 ## 7. Limites et temps de réponse
 
 - 1 000 caractères au plus par demande.
-- 100 demandes par jour pour votre projet (jour de Porto-Novo, UTC+1), y compris les phrases servies par le cache ; et 300 par jour pour l'ensemble des projets qui utilisent le service.
+- Un nombre de demandes par jour propre à votre projet, indiqué dans l'e-mail d'accès (100 par défaut ; jour de Porto-Novo, UTC+1), y compris les phrases servies par le cache ; et un plafond commun à l'ensemble des projets qui utilisent le service (300 par jour par défaut). Besoin de plus : écrivez à technum.services@bytechnum.com.
 - Une seule phrase fabriquée à la fois : si deux demandes arrivent ensemble, la seconde reçoit `voix_occupee` et réessaie quelques secondes plus tard.
 - Une phrase déjà dite revient tout de suite (`X-Voix-Cache: oui`).
 - Un long texte est dit par morceaux d'environ 120 caractères, recollés avec une courte pause : c'est ce qui garde le service léger. Couper vous-même aux fins de phrase donne le meilleur résultat.
@@ -219,4 +227,4 @@ La voix est le modèle [facebook/mms-tts-fon](https://huggingface.co/facebook/mm
 {"service": "voix fon", "version": "9c0f27e0a199", "modele": "facebook/mms-tts-fon", "licence": "CC BY-NC 4.0", "pret": true}
 ```
 
-Contact : Elisée, qui vous a transmis la clé.
+Contact : technum.services@bytechnum.com.
