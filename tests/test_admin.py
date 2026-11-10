@@ -199,6 +199,22 @@ class TestAdmin(unittest.TestCase):
         self.assertEqual(self.cles.lister(), [])
         self.assertEqual([e for e in self.courriel.envoyes if e["a"] == "koffi@exemple.bj"], [])
 
+    def test_approbations_simultanees_meme_nom(self):
+        """Deux onglets approuvent avec le même nom proposé : le second apprend que la demande est traitée."""
+        ident = self.deposer_demande()
+        original = Cles.preparer
+
+        def autre_onglet_d_abord(cles, projet, **options):
+            if not self.cles.lister(T):
+                original(cles, projet, **options)
+                Demandes(self.config.dossier_stockage / "demandes.json").marquer_approuvee(ident, projet, T)
+            return original(cles, projet, **options)  # le nom est désormais pris : ValueError
+
+        with mock.patch.object(Cles, "preparer", autre_onglet_d_abord):
+            r = self.post(f"/api/admin/demandes/{ident}/approuver", {"projet": "alpha"})
+        self.assertEqual(self.code(r), (409, "deja_decidee"))
+        self.assertEqual([p["projet"] for p in self.cles.lister(T)], ["alpha"])
+
     def test_demande_inconnue_404(self):
         self.assertEqual(self.code(self.post(f"/api/admin/demandes/{'0' * 16}/refuser")), (404, "demande_inconnue"))
 

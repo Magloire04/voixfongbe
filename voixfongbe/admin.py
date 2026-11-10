@@ -165,6 +165,9 @@ def decider(ctx: Contexte, environ, m):
         jeton = ctx.cles.preparer(projet, courriel=demande["courriel"], limite=limite, nom=demande["nom"],
                                   organisation=demande["organisation"] or None, maintenant=maintenant)
     except ValueError:
+        # Nom pris : peut-être par une approbation de la même demande, faite dans un autre onglet.
+        if (ctx.demandes.obtenir(demande["id"]) or {}).get("etat") != "en_attente":
+            raise ErreurApi("deja_decidee") from None
         raise ErreurApi("projet_pris") from None
     try:
         ctx.demandes.marquer_approuvee(demande["id"], projet, maintenant)
